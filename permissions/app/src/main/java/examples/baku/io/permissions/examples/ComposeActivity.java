@@ -13,12 +13,10 @@ import android.support.v7.app.AppCompatActivity;
 import android.support.v7.widget.Toolbar;
 import android.text.Editable;
 import android.text.TextWatcher;
-import android.util.Log;
 import android.view.Menu;
 import android.view.MenuItem;
 import android.view.View;
 import android.widget.EditText;
-import android.widget.Toast;
 
 import com.google.firebase.database.DataSnapshot;
 import com.google.firebase.database.DatabaseError;
@@ -32,8 +30,9 @@ import java.util.HashMap;
 import java.util.Map;
 import java.util.UUID;
 
+import examples.baku.io.permissions.Blessing;
 import examples.baku.io.permissions.PermissionManager;
-import examples.baku.io.permissions.discovery.DeviceData;
+import examples.baku.io.permissions.PermissionRequest;
 import examples.baku.io.permissions.PermissionService;
 import examples.baku.io.permissions.R;
 import examples.baku.io.permissions.discovery.DevicePickerActivity;
@@ -53,8 +52,10 @@ public class ComposeActivity extends AppCompatActivity implements ServiceConnect
     private DatabaseReference mMessageRef;
     private DatabaseReference mSyncedMessageRef;
 
-    String sourceId;
+    private Blessing mPublicBlessing;
+    private Blessing mCastBlessing;
 
+    String sourceId;
 
     EditText mToText;
     EditText mFrom;
@@ -65,7 +66,6 @@ public class ComposeActivity extends AppCompatActivity implements ServiceConnect
     TextInputLayout mFromLayout;
     TextInputLayout mSubjectLayout;
     TextInputLayout mMessageLayout;
-
 
     Map<String, Integer> permissions = new HashMap<>();
 
@@ -83,6 +83,8 @@ public class ComposeActivity extends AppCompatActivity implements ServiceConnect
         setContentView(R.layout.activity_compose);
         Toolbar toolbar = (Toolbar) findViewById(R.id.toolbar);
         setSupportActionBar(toolbar);
+        getSupportActionBar().setDisplayHomeAsUpEnabled(true);
+        getSupportActionBar().setDisplayShowHomeEnabled(true);
         toolbar.setTitle("Compose Message");
 
 
@@ -130,14 +132,16 @@ public class ComposeActivity extends AppCompatActivity implements ServiceConnect
             sendMessage();
         } else if (id == R.id.action_cast) {
             if (mPermissionService != null) {
-                    Intent requestIntent = new Intent(ComposeActivity.this, DevicePickerActivity.class);
-                    requestIntent.putExtra(DevicePickerActivity.EXTRA_REQUEST, DevicePickerActivity.REQUEST_DEVICE_ID);
-                    requestIntent.putExtra(DevicePickerActivity.EXTRA_REQUEST_ARGS, mPath);
-                    startActivityForResult(requestIntent, DevicePickerActivity.REQUEST_DEVICE_ID);
+                Intent requestIntent = new Intent(ComposeActivity.this, DevicePickerActivity.class);
+                requestIntent.putExtra(DevicePickerActivity.EXTRA_REQUEST, DevicePickerActivity.REQUEST_DEVICE_ID);
+                requestIntent.putExtra(DevicePickerActivity.EXTRA_REQUEST_ARGS, mPath);
+                startActivityForResult(requestIntent, DevicePickerActivity.REQUEST_DEVICE_ID);
             }
 
         } else if (id == R.id.action_settings) {
 
+        } else if (id == android.R.id.home) {
+            finish();
         }
 
         return super.onOptionsItemSelected(item);
@@ -157,12 +161,13 @@ public class ComposeActivity extends AppCompatActivity implements ServiceConnect
         super.onActivityResult(requestCode, resultCode, data);
         if (requestCode == DevicePickerActivity.REQUEST_DEVICE_ID && data != null && data.hasExtra(DevicePickerActivity.EXTRA_DEVICE_ID)) {
             String focus = data.getStringExtra(DevicePickerActivity.EXTRA_DEVICE_ID);
-            mPermissionService.getPermissionManager().bless(focus)
-                    .setPermissions(mPath, PermissionManager.FLAG_READ)
-                    .setPermissions(mPath + "/message", PermissionManager.FLAG_WRITE)
-                    .setPermissions(mPath + "/subject", PermissionManager.FLAG_WRITE);
+
             JSONObject castArgs = new JSONObject();
             try {
+                mCastBlessing = mPermissionService.getPermissionManager().bless(focus)
+                        .setPermissions(mPath, PermissionManager.FLAG_READ)
+                        .setPermissions(mPath + "/message", PermissionManager.FLAG_WRITE)
+                        .setPermissions(mPath + "/subject", PermissionManager.FLAG_WRITE);
                 castArgs.put("activity", ComposeActivity.class.getSimpleName());
                 castArgs.put(EXTRA_MESSAGE_PATH, mPath);
                 mPermissionService.getMessenger().to(focus).emit("cast", castArgs.toString());
@@ -177,7 +182,6 @@ public class ComposeActivity extends AppCompatActivity implements ServiceConnect
     public void onServiceConnected(ComponentName name, IBinder service) {
         PermissionService.PermissionServiceBinder binder = (PermissionService.PermissionServiceBinder) service;
         mPermissionService = binder.getInstance();
-
 
         if (mPermissionService != null) {
             mDeviceId = mPermissionService.getDeviceId();
@@ -203,6 +207,7 @@ public class ComposeActivity extends AppCompatActivity implements ServiceConnect
                 mPath = "documents/" + mDeviceId + "/emails/messages/" + mId;
             }
 
+
             mMessageRef = mPermissionService.getFirebaseDB().getReference(mPath);
             mSyncedMessageRef = mMessageRef.child("syncedValues");
             mPermissionService.getPermissionManager().addPermissionEventListener(mPath, messagePermissionListener);
@@ -211,8 +216,10 @@ public class ComposeActivity extends AppCompatActivity implements ServiceConnect
             wrapTextField(mSubjectLayout, "subject");
             wrapTextField(mMessageLayout, "message");
 
-            mPermissionService.setStatus(EXTRA_MESSAGE_PATH, mPath);
+            mPublicBlessing = mPermissionService.getPermissionManager().bless("public")
+                    .setPermissions(mPath + "/subject", PermissionManager.FLAG_READ);
 
+            mPermissionService.setStatus(EXTRA_MESSAGE_PATH, mPath);
         }
     }
 
@@ -238,26 +245,32 @@ public class ComposeActivity extends AppCompatActivity implements ServiceConnect
 
     void wrapTextField(final TextInputLayout editContainer, final String key) {
         final EditText edit = editContainer.getEditText();
-
         mPermissionService.getPermissionManager().addPermissionEventListener(mPath + "/" + key, new PermissionManager.OnPermissionChangeListener() {
             @Override
             public void onPermissionChange(int current) {
-                Log.e(key, "::" + current);
                 if ((current & PermissionManager.FLAG_WRITE) == PermissionManager.FLAG_WRITE) {
                     edit.setEnabled(true);
-                    edit.setOnClickListener(null);
+                    editContainer.setOnClickListener(null);
                     edit.setFocusable(true);
                     edit.setBackgroundColor(Color.TRANSPARENT);
                     linkTextField(edit, key);
                 } else if ((current & PermissionManager.FLAG_READ) == PermissionManager.FLAG_READ) {
                     edit.setEnabled(false);
-                    edit.setOnClickListener(null);
+                    editContainer.setOnClickListener(new View.OnClickListener() {
+                        @Override
+                        public void onClick(View v) {
+                            mPermissionService.getPermissionManager().request(key, new PermissionRequest.Builder()
+                                    .addPermission(mPath + "/" + key, PermissionManager.FLAG_WRITE)
+                                    .build());
+                        }
+                    });
                     edit.setFocusable(false);
                     edit.setBackgroundColor(Color.TRANSPARENT);
                     linkTextField(edit, key);
                 } else {
                     unlinkTextField(key);
                     edit.setEnabled(false);
+                    editContainer.setOnClickListener(null);
                     edit.setFocusable(false);
                     edit.setBackgroundColor(Color.BLACK);
                 }
@@ -322,7 +335,9 @@ public class ComposeActivity extends AppCompatActivity implements ServiceConnect
         unlinkTextField("subject");
         unlinkTextField("message");
         if (mPermissionService != null) {
-            mPermissionService.revokeAll();
+            if (mCastBlessing != null) {
+                mPermissionService.getPermissionManager().revokeBlessing(mCastBlessing.getTarget());
+            }
         }
         unbindService(this);
     }

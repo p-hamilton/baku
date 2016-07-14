@@ -1,5 +1,7 @@
 package examples.baku.io.permissions;
 
+import com.google.common.collect.HashMultimap;
+import com.google.common.collect.Multimap;
 import com.google.firebase.database.DataSnapshot;
 import com.google.firebase.database.DatabaseError;
 import com.google.firebase.database.DatabaseReference;
@@ -13,8 +15,6 @@ import java.util.UUID;
 
 /**
  * Created by phamilton on 7/9/16.
- *
- *
  */
 public class Blessing implements Iterable<Blessing.Rule> {
 
@@ -26,9 +26,11 @@ public class Blessing implements Iterable<Blessing.Rule> {
     private String source;
     private String target;
     private DatabaseReference ref;
+    private DatabaseReference parentRef;
     private DatabaseReference rulesRef;
     private DataSnapshot snapshot;
 
+    final Map<String, Blessing> grantedBlessings = new HashMap<>();
     final private Map<String, PermissionReference> refCache = new HashMap<>();
 
     public Blessing(DataSnapshot snapshot) {
@@ -48,6 +50,22 @@ public class Blessing implements Iterable<Blessing.Rule> {
             @Override
             public void onDataChange(DataSnapshot dataSnapshot) {
                 setSnapshot(dataSnapshot);
+
+                //get all blessings previously granted by this
+                parentRef.orderByChild("source").equalTo(id).addListenerForSingleValueEvent(new ValueEventListener() {
+                    @Override
+                    public void onDataChange(DataSnapshot dataSnapshot) {
+                        for (DataSnapshot childSnap : dataSnapshot.getChildren()) {
+                            Blessing granted = new Blessing(childSnap);
+                            grantedBlessings.put(granted.getTarget(), granted);
+                        }
+                    }
+
+                    @Override
+                    public void onCancelled(DatabaseError databaseError) {
+
+                    }
+                });
             }
 
             @Override
@@ -55,9 +73,11 @@ public class Blessing implements Iterable<Blessing.Rule> {
                 databaseError.toException().printStackTrace();
             }
         });
+
+
     }
 
-    public boolean isSynched(){
+    public boolean isSynched() {
         return snapshot != null;
     }
 
@@ -98,6 +118,10 @@ public class Blessing implements Iterable<Blessing.Rule> {
 
     public Blessing setPermissions(String path, int permissions) {
         getRef(path).setPermission(permissions);
+        for (Blessing grantedBlessing : grantedBlessings.values()) {
+            int current = grantedBlessing.getPermissionAt(path, 0);
+            grantedBlessing.setPermissions(path, current & permissions);
+        }
         return this;
     }
 
@@ -106,12 +130,31 @@ public class Blessing implements Iterable<Blessing.Rule> {
         return this;
     }
 
+
     //delete all permission above path
-    public Blessing revoke(String path) {
-        if(path != null){
+    public Blessing revokePermissions(String path) {
+        if (path != null) {
             rulesRef.child(path).removeValue();
-        }else{
+        } else {  //delete blessing
             rulesRef.removeValue();
+        }
+        for (Blessing grantedBlessing : grantedBlessings.values()) {
+            grantedBlessing.revokePermissions(path);
+        }
+        return this;
+    }
+
+    private void remove() {
+        ref.removeValue();
+        for (Blessing child : grantedBlessings.values()) {
+            child.remove();
+        }
+    }
+
+    public Blessing revokeBlessing(String target) {
+        if (grantedBlessings.containsKey(target)) {
+            Blessing revokedBlessing = grantedBlessings.remove(target);
+            revokedBlessing.remove();
         }
         return this;
     }
@@ -129,6 +172,7 @@ public class Blessing implements Iterable<Blessing.Rule> {
 
     public void setRef(DatabaseReference ref) {
         this.ref = ref;
+        this.parentRef = ref.getParent();
         this.rulesRef = ref.child(KEY_RULES);
     }
 
@@ -154,6 +198,19 @@ public class Blessing implements Iterable<Blessing.Rule> {
         return starting;
     }
 
+    //return a blessing interface for granting/revoking permissions
+    public Blessing bless(String target) {
+        Blessing result = null;
+        if (grantedBlessings.containsKey(target)) {
+            result = grantedBlessings.get(target);
+        } else {
+            result = new Blessing(target, this.id, parentRef.push());
+            grantedBlessings.put(target, result);
+        }
+        return result;
+    }
+
+
     @Override
     public Iterator<Rule> iterator() {
         if (!isSynched()) {
@@ -165,7 +222,7 @@ public class Blessing implements Iterable<Blessing.Rule> {
         final Stack<Rule> inheritanceStack = new Stack<>();
         inheritanceStack.push(new Rule(null, 0)); //default rule
 
-        Iterator<Rule> iterator =  new Iterator<Rule>() {
+        Iterator<Rule> iterator = new Iterator<Rule>() {
             @Override
             public boolean hasNext() {
                 return nodeStack.size() > 0;
@@ -178,13 +235,13 @@ public class Blessing implements Iterable<Blessing.Rule> {
 
                 Rule result = new Rule();
                 String key = node.getKey();
-                if(!KEY_RULES.equals(key)) {   //key_rules is the root directory
-                    if(inheritedRule.path != null){
-                        result.path = inheritedRule.path +"/" + key;
-                    }else{
+                if (!KEY_RULES.equals(key)) {   //key_rules is the root directory
+                    if (inheritedRule.path != null) {
+                        result.path = inheritedRule.path + "/" + key;
+                    } else {
                         result.path = key;
                     }
-                }else{
+                } else {
                     result.path = null;
                 }
                 result.permissions = inheritedRule.permissions;
