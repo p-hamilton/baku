@@ -43,6 +43,7 @@ import java.util.Iterator;
 import java.util.LinkedHashMap;
 import java.util.List;
 
+import examples.baku.io.permissions.PermissionManager;
 import examples.baku.io.permissions.PermissionService;
 import examples.baku.io.permissions.R;
 import examples.baku.io.permissions.discovery.DevicePickerActivity;
@@ -158,6 +159,9 @@ public class EmailActivity extends AppCompatActivity implements ServiceConnectio
             mMessagesRef = mFirebaseDB.getReference(KEY_DOCUMENTS).child(mDeviceId).child(KEY_EMAILS).child(KEY_MESSAGES);
             mMessagesRef.addValueEventListener(messagesValueListener);
             mMessagesRef.addChildEventListener(messageChildListener);
+
+            //TEMP: example status
+            mPermissionService.clearStatus(ComposeActivity.EXTRA_MESSAGE_PATH);
         }
     }
 
@@ -258,7 +262,9 @@ public class EmailActivity extends AppCompatActivity implements ServiceConnectio
             String path = data.getStringExtra(DevicePickerActivity.EXTRA_REQUEST_ARGS);
 
             mPermissionService.getPermissionManager().bless(focus)
-                    .setPermissions(path, 3);
+                    .setPermissions(path, PermissionManager.FLAG_READ)
+                    .setPermissions(path + "/message", PermissionManager.FLAG_WRITE)
+                    .setPermissions(path + "/subject", PermissionManager.FLAG_WRITE);
             JSONObject castArgs = new JSONObject();
             try {
                 castArgs.put("activity", ComposeActivity.class.getSimpleName());
@@ -340,6 +346,16 @@ public class EmailActivity extends AppCompatActivity implements ServiceConnectio
         @Override
         public int getItemCount() {
             return mDataset.size();
+        }
+    }
+
+
+    @Override
+    protected void onResume() {
+        super.onResume();
+        if (mPermissionService != null) {
+            //TEMP: example status
+            mPermissionService.clearStatus(ComposeActivity.EXTRA_MESSAGE_PATH);
         }
     }
 

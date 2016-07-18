@@ -31,6 +31,10 @@
             android:label="@string/title_activity_compose"
             android:theme="@style/AppTheme.NoActionBar" />
         <activity
+            android:name=".discovery.DiscoveryActivity"
+            android:label="@string/title_activity_discovery"
+            android:theme="@style/AppTheme.NoActionBar" />
+        <activity
             android:name=".discovery.DevicePickerActivity"
             android:label="Device Picker"
             android:theme="@style/Theme.AppCompat.Light.Dialog"></activity>
