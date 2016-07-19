@@ -133,7 +133,7 @@ public class PermissionService extends Service {
 
         mPermissionManager.join("public");
 
-        mPermissionManager.addOnRequestListener(new PermissionManager.OnRequestListener() {
+        mPermissionManager.addOnRequestListener("*", new PermissionManager.OnRequestListener() {
             @Override
             public boolean onRequest(PermissionRequest request, Blessing blessing) {
 
@@ -384,7 +384,7 @@ public class PermissionService extends Service {
                 if (intent.hasExtra(EXTRA_REQUEST_ID)) {
                     String rId = intent.getStringExtra(EXTRA_REQUEST_ID);
                     PermissionRequest request = mPermissionManager.mRequests.get(rId);
-                    request.grantAll(mPermissionManager);
+                    mPermissionManager.grantRequest(request);
                 }
                 if (intent.hasExtra(EXTRA_NOTIFICATION_ID)) {
                     mNotificationManager.cancel(intent.getIntExtra(EXTRA_NOTIFICATION_ID, -1));

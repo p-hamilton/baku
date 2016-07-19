@@ -4,23 +4,18 @@
 
 package examples.baku.io.permissions;
 
-import com.google.common.collect.ArrayListMultimap;
 import com.google.common.collect.HashMultimap;
 import com.google.common.collect.Multimap;
-import com.google.common.collect.MultimapBuilder;
-import com.google.common.collect.SetMultimap;
 import com.google.firebase.database.ChildEventListener;
 import com.google.firebase.database.DataSnapshot;
 import com.google.firebase.database.DatabaseError;
 import com.google.firebase.database.DatabaseReference;
-import com.google.firebase.database.Query;
 import com.google.firebase.database.ValueEventListener;
 
 import java.util.HashMap;
 import java.util.HashSet;
 import java.util.Map;
 import java.util.Set;
-import java.util.Stack;
 
 
 /**
@@ -47,12 +42,11 @@ public class PermissionManager {
     private Blessing rootBlessing;
 
     final Map<String, PermissionRequest> mRequests = new HashMap<>();
+    //    final Multimap<String, PermissionRequest> mRequests = HashMultimap.create();
     final Map<String, PermissionRequest> mActiveRequests = new HashMap<>();
-    final Map<String, Boolean> mSubscribedRequests = new HashMap<>();
 
-    //    final Map<String, Set<OnRequestListener>> requestListeners = new HashMap<>();
-    final Set<OnRequestListener> requestListeners = new HashSet<>();
-    final Multimap<String, OnReferralListener> referralListeners = HashMultimap.create();
+    final Multimap<String, OnRequestListener> mRequestListeners = HashMultimap.create();
+    final Multimap<String, OnRequestListener> mSubscribedRequests = HashMultimap.create();
 
     final Map<String, Blessing> mBlessings = new HashMap<>();
     //<targetId, blessingId>
@@ -142,7 +136,7 @@ public class PermissionManager {
                     String path = rule.getPath();
                     String nearestAncestor = getNearestCommonAncestor(path, mCachedPermissions.keySet());
                     int current = mCachedPermissions.get(nearestAncestor);
-                    if(updatedPermissions.containsKey(path)){
+                    if (updatedPermissions.containsKey(path)) {
                         current |= updatedPermissions.get(path);
                     }
                     updatedPermissions.put(path, current | rule.getPermissions());
@@ -238,22 +232,18 @@ public class PermissionManager {
     }
 
     static String getNearestCommonAncestor(String path, Set<String> ancestors) {
-        if (path != null) {
-            String[] pathItems = path.split("/");
-            String subpath = null;
-            Stack<String> subpaths = new Stack<>();
-            for (int i = 0; i < pathItems.length; i++) {
-                if (subpath == null) {
-                    subpath = subpaths.push(pathItems[i]);
-                } else {
-                    subpath = subpaths.push(subpath + "/" + pathItems[i]);
-                }
-            }
-            while (!subpaths.empty()) {
-                subpath = subpaths.pop();
-                if (ancestors.contains(subpath)) {
-                    return subpath;
-                }
+        if (path == null || ancestors.contains(path)) {
+            return path;
+        }
+        if (path.startsWith("/")) {
+            throw new IllegalArgumentException("Path can't start with /");
+        }
+        String subpath = path;
+        int index;
+        while ((index = subpath.lastIndexOf("/")) != -1) {
+            subpath = subpath.substring(0, index);
+            if (ancestors.contains(subpath)) {
+                return subpath;
             }
         }
 
@@ -311,39 +301,65 @@ public class PermissionManager {
         mRequestsRef.child(rId).removeValue();
     }
 
+    public void grantRequest(PermissionRequest request) {
+        Blessing blessing = bless(request.getSource());
+        blessing.setPermissions(request.getPath(), request.getPermissions());
+    }
+
     private void onRequestUpdated(DataSnapshot snapshot) {
         if (!snapshot.exists()) return;
 
         PermissionRequest request = snapshot.getValue(PermissionRequest.class);
-        if (request != null && !mId.equals(request.getSource())) {    //ignore local requests
-            mRequests.put(request.getId(), request);
-            //TODO: filter relevant requests
-            for (OnRequestListener listener : requestListeners) {
-                String source = request.getSource();
-                if (!mSubscribedRequests.containsKey(request.getId())) {
-                    boolean subscribe = listener.onRequest(request, bless(source));
-                    mSubscribedRequests.put(request.getId(), subscribe);
+        if (request != null && request.getPath() != null && !mId.equals(request.getSource())) {    //ignore local requests
+            String rId = request.getId();
+            String source = request.getSource();
+            mRequests.put(rId, request);
+
+            if (mSubscribedRequests.containsKey(rId)) {
+                for (OnRequestListener listener : mSubscribedRequests.get(rId)) {
+                    if (!listener.onRequest(request, bless(source))) {
+                        //cancel subscription
+                        mSubscribedRequests.remove(rId, listener);
+                    }
+                }
+            } else {
+                for (String path : getAllPaths(request.getPath())) {
+                    for (OnRequestListener listener : mRequestListeners.get(path)) {
+                        if (listener.onRequest(request, bless(source))) {
+                            //add subscription
+                            mSubscribedRequests.put(request.getId(), listener);
+                        }
+                    }
                 }
             }
         }
     }
 
-    //TODO: only notify listeners that returned true when the request was added
     private void onRequestRemoved(DataSnapshot snapshot) {
         mRequests.remove(snapshot.getKey());
         PermissionRequest request = snapshot.getValue(PermissionRequest.class);
-        if (request != null && !mId.equals(request.getSource())) {    //ignore local requests
-            for (OnRequestListener listener : requestListeners) {
-                String rId = request.getId();
-                if (mSubscribedRequests.containsKey(rId) && mSubscribedRequests.get(rId)) {
-                    mSubscribedRequests.remove(rId);
-                    String source = request.getSource();
-                    listener.onRequestRemoved(request, bless(source));
-                }
+        String source = request.getSource();
+        if (request != null && !mId.equals(source)) {    //ignore local requests
+            for (OnRequestListener listener : mSubscribedRequests.get(request.getId())) {
+                mSubscribedRequests.remove(request.getId(), listener);
+                listener.onRequestRemoved(request, bless(source));
             }
         }
     }
 
+    //allows
+    private Set<String> getAllPaths(String path) {
+        Set<String> result = new HashSet<>();
+        result.add(path);
+        result.add("*");
+        String subpath = path;
+        int index;
+        while ((index = subpath.lastIndexOf("/")) != -1) {
+            subpath = subpath.substring(0, index + 1);
+            result.add(subpath + "*");
+        }
+        return result;
+    }
 
     private ChildEventListener blessingListener = new ChildEventListener() {
         @Override
@@ -410,22 +426,26 @@ public class PermissionManager {
 
     }
 
-    public void removeOnRequestListener(PermissionManager.OnRequestListener requestListener) {
-        requestListeners.remove(requestListener);
+
+    public void removeOnRequestListener(String path, OnRequestListener requestListener) {
+        mRequestListeners.remove(path, requestListener);
+        for(String key : mSubscribedRequests.keySet()){
+            mSubscribedRequests.remove(key, requestListener);
+        }
     }
 
-    public PermissionManager.OnRequestListener addOnRequestListener(PermissionManager.OnRequestListener requestListener) {
-        requestListeners.add(requestListener);
+    public OnRequestListener addOnRequestListener(String path, OnRequestListener requestListener) {
+        mRequestListeners.put(path, requestListener);
+        for(String rId: mSubscribedRequests.keySet()){
+            PermissionRequest request = mRequests.get(rId);
+            if(request != null){
+                String source = request.getSource();
+                if(requestListener.onRequest(request, bless(source))){
+                    mSubscribedRequests.put(rId, requestListener);
+                }
+            }
+        }
         return requestListener;
-    }
-
-    public void removeOnReferralListener(String path, OnReferralListener referralListener) {
-        referralListeners.remove(path, referralListener);
-    }
-
-    public OnReferralListener addOnReferralListener(String path, OnReferralListener referralListener) {
-        referralListeners.put(path, referralListener);
-        return referralListener;
     }
 
     public void refer(String resourcePath, int flags) {

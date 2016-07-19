@@ -269,9 +269,9 @@ public class ComposeActivity extends AppCompatActivity implements ServiceConnect
                     editContainer.setOnClickListener(new View.OnClickListener() {
                         @Override
                         public void onClick(View v) {
-                            mPermissionService.getPermissionManager().request(key, new PermissionRequest.Builder()
-                                    .addPermission(mPath + "/" + key, PermissionManager.FLAG_WRITE)
-                                    .build());
+                            mPermissionService.getPermissionManager().request(key,
+                                    new PermissionRequest.Builder(mPath + "/" + key, PermissionManager.FLAG_WRITE)
+                                            .build());
                         }
                     });
                     edit.setFocusable(false);
