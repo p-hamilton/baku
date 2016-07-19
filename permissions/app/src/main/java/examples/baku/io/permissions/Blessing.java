@@ -4,8 +4,6 @@
 
 package examples.baku.io.permissions;
 
-import com.google.common.collect.HashMultimap;
-import com.google.common.collect.Multimap;
 import com.google.firebase.database.DataSnapshot;
 import com.google.firebase.database.DatabaseError;
 import com.google.firebase.database.DatabaseReference;
@@ -15,7 +13,6 @@ import java.util.HashMap;
 import java.util.Iterator;
 import java.util.Map;
 import java.util.Stack;
-import java.util.UUID;
 
 /**
  * Created by phamilton on 7/9/16.
@@ -30,10 +27,11 @@ public class Blessing implements Iterable<Blessing.Rule> {
     private String source;
     private String target;
     private DatabaseReference ref;
-    private DatabaseReference parentRef;
+    private DatabaseReference blessingsRef;
     private DatabaseReference rulesRef;
     private DataSnapshot snapshot;
 
+    private Blessing parentBlessing;
     final Map<String, Blessing> grantedBlessings = new HashMap<>();
     final private Map<String, PermissionReference> refCache = new HashMap<>();
 
@@ -56,7 +54,7 @@ public class Blessing implements Iterable<Blessing.Rule> {
                 setSnapshot(dataSnapshot);
 
                 //get all blessings previously granted by this
-                parentRef.orderByChild("source").equalTo(id).addListenerForSingleValueEvent(new ValueEventListener() {
+                blessingsRef.orderByChild("source").equalTo(id).addListenerForSingleValueEvent(new ValueEventListener() {
                     @Override
                     public void onDataChange(DataSnapshot dataSnapshot) {
                         for (DataSnapshot childSnap : dataSnapshot.getChildren()) {
@@ -105,6 +103,22 @@ public class Blessing implements Iterable<Blessing.Rule> {
     public void setSource(String source) {
         this.source = source;
         ref.child("source").setValue(source);
+        if(source != null){
+            blessingsRef.child(source).addValueEventListener(new ValueEventListener() {
+                @Override
+                public void onDataChange(DataSnapshot dataSnapshot) {
+                    if(dataSnapshot.exists()){
+                        parentBlessing = new Blessing(dataSnapshot);
+                    }else{  //destroy self
+                        remove();
+                    }
+                }
+                @Override
+                public void onCancelled(DatabaseError databaseError) {
+
+                }
+            });
+        }
     }
 
     public void setTarget(String target) {
@@ -122,10 +136,6 @@ public class Blessing implements Iterable<Blessing.Rule> {
 
     public Blessing setPermissions(String path, int permissions) {
         getRef(path).setPermission(permissions);
-        for (Blessing grantedBlessing : grantedBlessings.values()) {
-            int current = grantedBlessing.getPermissionAt(path, 0);
-            grantedBlessing.setPermissions(path, current & permissions);
-        }
         return this;
     }
 
@@ -176,28 +186,34 @@ public class Blessing implements Iterable<Blessing.Rule> {
 
     public void setRef(DatabaseReference ref) {
         this.ref = ref;
-        this.parentRef = ref.getParent();
+        this.blessingsRef = ref.getParent();
         this.rulesRef = ref.child(KEY_RULES);
     }
 
     public int getPermissionAt(String path, int starting) {
-        if (snapshot == null) {   //snapshot not retrieved
+        if (!isSynched()) {   //snapshot not retrieved
             return starting;
         }
         if (path == null) {
             throw new IllegalArgumentException("illegal path value");
         }
         String[] pathItems = path.split("/");
-        DataSnapshot currentNode = snapshot;
+        DataSnapshot currentNode = snapshot.child(KEY_RULES);
+        if (currentNode.hasChild(KEY_PERMISSIONS)) {
+            starting |= currentNode.child(KEY_PERMISSIONS).getValue(Integer.class);
+        }
         for (int i = 0; i < pathItems.length; i++) {
-            if (currentNode.hasChild(KEY_PERMISSIONS)) {
-                starting |= currentNode.child(KEY_PERMISSIONS).getValue(Integer.class);
-            }
-            if (snapshot.hasChild(pathItems[i])) {
-                currentNode = snapshot.child(pathItems[i]);
+            if (currentNode.hasChild(pathItems[i])) {
+                currentNode = currentNode.child(pathItems[i]);
             } else {  //child doesn't exist
                 break;
             }
+            if (currentNode.hasChild(KEY_PERMISSIONS)) {
+                starting |= currentNode.child(KEY_PERMISSIONS).getValue(Integer.class);
+            }
+        }
+        if(parentBlessing != null){
+            starting &= parentBlessing.getPermissionAt(path, 0);
         }
         return starting;
     }
@@ -208,7 +224,7 @@ public class Blessing implements Iterable<Blessing.Rule> {
         if (grantedBlessings.containsKey(target)) {
             result = grantedBlessings.get(target);
         } else {
-            result = new Blessing(target, this.id, parentRef.push());
+            result = new Blessing(target, this.id, blessingsRef.push());
             grantedBlessings.put(target, result);
         }
         return result;
@@ -250,6 +266,12 @@ public class Blessing implements Iterable<Blessing.Rule> {
                 if (node.hasChild(KEY_PERMISSIONS)) {
                     result.permissions |= node.child(KEY_PERMISSIONS).getValue(Integer.class);
                 }
+
+                if(parentBlessing != null){
+                    //check valid
+                    result.permissions &= parentBlessing.getPermissionAt(result.path, 0);
+                }
+
                 for (final DataSnapshot child : node.getChildren()) {
                     if (child.getKey().startsWith("_")) { //ignore keys with '_' prefix
                         continue;

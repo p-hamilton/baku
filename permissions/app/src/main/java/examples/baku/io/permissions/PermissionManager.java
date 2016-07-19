@@ -26,6 +26,8 @@ import java.util.Set;
  */
 public class PermissionManager {
 
+    public static final String EXTRA_TIMEOUT = "extraTimeout";
+    public static final String EXTRA_COLOR = "extraColor";
     DatabaseReference mDatabaseRef;
     DatabaseReference mBlessingsRef;
     DatabaseReference mRequestsRef;
@@ -270,6 +272,10 @@ public class PermissionManager {
         return rootBlessing;
     }
 
+    public Map<String, Blessing> getBlessings() {
+        return mBlessings;
+    }
+
     //return a blessing interface for granting/revoking permissions
     //uses local device blessing as root
     public Blessing bless(String target) {
@@ -323,32 +329,37 @@ public class PermissionManager {
 
         PermissionRequest request = snapshot.getValue(PermissionRequest.class);
         if (request != null && request.getPath() != null) {
-            if (((getPermission(request.getPath()) & FLAG_WRITE) == FLAG_WRITE) || !mId.equals(request.getSource())) {    //ignore local requests)
+            //ignore local requests
+            if (mId.equals(request.getSource()))
+                return;
+            //Check if request permissions can be granted by this instance
+            if((getPermission(request.getPath()) & request.getPermissions()) != request.getPermissions()){
                 return;
             }
-                String rId = request.getId();
-                String source = request.getSource();
-                mRequests.put(rId, request);
 
-                if (mSubscribedRequests.containsKey(rId)) {
-                    for (OnRequestListener listener : new HashSet<>(mSubscribedRequests.get(rId))) {
-                        if (!listener.onRequest(request, bless(source))) {
-                            //cancel subscription
-                            mSubscribedRequests.remove(rId, listener);
-                        }
+            String rId = request.getId();
+            String source = request.getSource();
+            mRequests.put(rId, request);
+
+            if (mSubscribedRequests.containsKey(rId)) {
+                for (OnRequestListener listener : new HashSet<>(mSubscribedRequests.get(rId))) {
+                    if (!listener.onRequest(request, bless(source))) {
+                        //cancel subscription
+                        mSubscribedRequests.remove(rId, listener);
                     }
-                } else {
-                    for (String path : getAllPaths(request.getPath())) {
-                        for (OnRequestListener listener : mRequestListeners.get(path)) {
-                            if (listener.onRequest(request, bless(source))) {
-                                //add subscription
-                                mSubscribedRequests.put(request.getId(), listener);
-                            }
+                }
+            } else {
+                for (String path : getAllPaths(request.getPath())) {
+                    for (OnRequestListener listener : mRequestListeners.get(path)) {
+                        if (listener.onRequest(request, bless(source))) {
+                            //add subscription
+                            mSubscribedRequests.put(request.getId(), listener);
                         }
                     }
                 }
             }
         }
+    }
 
     private void onRequestRemoved(DataSnapshot snapshot) {
         mRequests.remove(snapshot.getKey());

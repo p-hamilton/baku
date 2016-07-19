@@ -155,9 +155,10 @@ public class ComposeActivity extends AppCompatActivity implements ServiceConnect
 
 
     void sendMessage() {
-
         //TODO: PermissionManager.request()
-
+        mPermissionManager.request(mPath + "/send", mDeviceId)
+                .putExtra(PermissionManager.EXTRA_TIMEOUT, "2000")
+                .putExtra(PermissionManager.EXTRA_COLOR, "#F00");
         finish();
     }
 
@@ -223,8 +224,23 @@ public class ComposeActivity extends AppCompatActivity implements ServiceConnect
             wrapTextField(mSubjectLayout, "subject");
             wrapTextField(mMessageLayout, "message");
 
-            mPublicBlessing = mPermissionService.getPermissionManager().bless("public")
-                    .setPermissions(mPath + "/subject", PermissionManager.FLAG_READ);
+            //close if deleted
+            mMessageRef.child("id").addValueEventListener(new ValueEventListener() {
+                @Override
+                public void onDataChange(DataSnapshot dataSnapshot) {
+                    if(!dataSnapshot.exists()){
+                        finish();
+                    }
+                }
+
+                @Override
+                public void onCancelled(DatabaseError databaseError) {
+                    finish();
+                }
+            });
+
+//            mPublicBlessing = mPermissionService.getPermissionManager().bless("public")
+//                    .setPermissions(mPath + "/subject", PermissionManager.FLAG_READ);
 
             mPermissionManager.addOnRequestListener("documents/" + mDeviceId + "/emails/messages/"+mId+"/*", new PermissionManager.OnRequestListener() {
                 @Override
