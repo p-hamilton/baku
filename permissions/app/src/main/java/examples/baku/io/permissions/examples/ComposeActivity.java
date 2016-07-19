@@ -269,9 +269,9 @@ public class ComposeActivity extends AppCompatActivity implements ServiceConnect
                     editContainer.setOnClickListener(new View.OnClickListener() {
                         @Override
                         public void onClick(View v) {
-                            mPermissionService.getPermissionManager().request(key,
-                                    new PermissionRequest.Builder(mPath + "/" + key, PermissionManager.FLAG_WRITE)
-                                            .build());
+                            mPermissionService.getPermissionManager().request(mPath + "/" + key, mDeviceId + mId)
+                                    .setPermissions( PermissionManager.FLAG_WRITE)
+                                    .udpate();
                         }
                     });
                     edit.setFocusable(false);
@@ -348,6 +348,9 @@ public class ComposeActivity extends AppCompatActivity implements ServiceConnect
             if (mCastBlessing != null) {
                 mPermissionService.getPermissionManager().revokeBlessing(mCastBlessing.getTarget());
             }
+
+            //cancel all requests made from this activity
+            mPermissionService.getPermissionManager().cancelRequests(mDeviceId+mId);
         }
         unbindService(this);
     }

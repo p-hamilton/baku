@@ -143,7 +143,8 @@ public class EmailActivity extends AppCompatActivity implements ServiceConnectio
             //Remove swiped item from list and notify the RecyclerView
             int pos = viewHolder.getAdapterPosition();
             MessageData item = mInboxAdapter.getItem(pos);
-            if (item != null) {
+            //TOOO: bug, item id shouldn't ever be null
+            if (item != null && item.getId() != null) {
                 mMessagesRef.child(item.getId()).removeValue();
             }
         }

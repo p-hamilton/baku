@@ -4,8 +4,10 @@
 
 package examples.baku.io.permissions;
 
+import com.google.common.collect.HashBasedTable;
 import com.google.common.collect.HashMultimap;
 import com.google.common.collect.Multimap;
+import com.google.common.collect.Table;
 import com.google.firebase.database.ChildEventListener;
 import com.google.firebase.database.DataSnapshot;
 import com.google.firebase.database.DatabaseError;
@@ -14,6 +16,7 @@ import com.google.firebase.database.ValueEventListener;
 
 import java.util.HashMap;
 import java.util.HashSet;
+import java.util.Hashtable;
 import java.util.Map;
 import java.util.Set;
 
@@ -43,7 +46,8 @@ public class PermissionManager {
 
     final Map<String, PermissionRequest> mRequests = new HashMap<>();
     //    final Multimap<String, PermissionRequest> mRequests = HashMultimap.create();
-    final Map<String, PermissionRequest> mActiveRequests = new HashMap<>();
+//    final Map<String, PermissionRequest.Builder> mActiveRequests = new HashMap<>();
+    final Table<String, String, PermissionRequest.Builder> mActiveRequests = HashBasedTable.create();
 
     final Multimap<String, OnRequestListener> mRequestListeners = HashMultimap.create();
     final Multimap<String, OnRequestListener> mSubscribedRequests = HashMultimap.create();
@@ -355,8 +359,8 @@ public class PermissionManager {
         String subpath = path;
         int index;
         while ((index = subpath.lastIndexOf("/")) != -1) {
-            subpath = subpath.substring(0, index + 1);
-            result.add(subpath + "*");
+            subpath = subpath.substring(0, index);
+            result.add(subpath + "/*");
         }
         return result;
     }
@@ -436,7 +440,7 @@ public class PermissionManager {
 
     public OnRequestListener addOnRequestListener(String path, OnRequestListener requestListener) {
         mRequestListeners.put(path, requestListener);
-        for(String rId: mSubscribedRequests.keySet()){
+        for(String rId: mRequests.keySet()){
             PermissionRequest request = mRequests.get(rId);
             if(request != null){
                 String source = request.getSource();
@@ -448,27 +452,26 @@ public class PermissionManager {
         return requestListener;
     }
 
-    public void refer(String resourcePath, int flags) {
 
+    public PermissionRequest.Builder request(String path, String group) {
+        PermissionRequest.Builder builder = mActiveRequests.get(group, path);
+        if(builder == null){
+            builder = new PermissionRequest.Builder(mRequestsRef.push(), path, mId);
+            mActiveRequests.put(group, path, builder);
+        }
+        return builder;
     }
 
-    public void request(String group, PermissionRequest request) {
-        if (request == null)
-            throw new IllegalArgumentException("null request");
-
-        DatabaseReference requestRef = mRequestsRef.push();
-        request.setId(requestRef.getKey());
-        request.setSource(mId);
-        requestRef.setValue(request);
-
-        cancelRequest(group);   //cancel previous request
-        mActiveRequests.put(group, request);
+    public void cancelRequests(String group){
+        for(String path: mActiveRequests.row(group).keySet()){
+            cancelRequest(group, path);
+        }
     }
 
-    public void cancelRequest(String group) {
-        if (mActiveRequests.containsKey(group)) {
-            PermissionRequest request = mActiveRequests.get(group);
-            mRequestsRef.child(request.getId()).removeValue();
+    public void cancelRequest(String group, String path) {
+        PermissionRequest.Builder builder = mActiveRequests.remove(group, path);
+        if(builder != null){
+            builder.cancel();
         }
     }
 

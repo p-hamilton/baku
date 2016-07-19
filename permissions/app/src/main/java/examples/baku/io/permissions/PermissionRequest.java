@@ -4,6 +4,7 @@
 
 package examples.baku.io.permissions;
 
+import com.google.firebase.database.DatabaseReference;
 import com.google.firebase.database.ServerValue;
 
 import java.util.HashMap;
@@ -97,15 +98,24 @@ public class PermissionRequest {
 
     public static class Builder {
         private PermissionRequest request;
+        private DatabaseReference ref;
 
-        public Builder(String path, int suggested) {
+        public Builder(DatabaseReference ref, String path, String source) {
+            this.ref = ref;
             this.request = new PermissionRequest();
+            request.setId(ref.getKey());
             request.setPath(path);
-            request.setPermissions(suggested);
+            request.setSource(source);
         }
 
         public PermissionRequest.Builder putExtra(String key, String value) {
             this.request.extras.put(key, value);
+            return this;
+        }
+
+
+        public PermissionRequest.Builder setPermissions(int suggested) {
+            request.setPermissions(suggested);
             return this;
         }
 
@@ -118,8 +128,13 @@ public class PermissionRequest {
             return this;
         }
 
-        public PermissionRequest build() {
+        public void cancel(){
+            this.ref.removeValue();
+        }
+
+        public PermissionRequest udpate() {
             //TODO: check valid
+            this.ref.setValue(request);
             return request;
         }
 
