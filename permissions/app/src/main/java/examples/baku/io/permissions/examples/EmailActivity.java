@@ -7,6 +7,7 @@ package examples.baku.io.permissions.examples;
 import android.content.ComponentName;
 import android.content.Intent;
 import android.content.ServiceConnection;
+import android.graphics.Color;
 import android.os.Bundle;
 import android.os.IBinder;
 import android.provider.ContactsContract;
@@ -39,11 +40,15 @@ import org.json.JSONException;
 import org.json.JSONObject;
 
 import java.util.ArrayList;
+import java.util.HashMap;
 import java.util.Iterator;
 import java.util.LinkedHashMap;
 import java.util.List;
+import java.util.Map;
 
+import examples.baku.io.permissions.Blessing;
 import examples.baku.io.permissions.PermissionManager;
+import examples.baku.io.permissions.PermissionRequest;
 import examples.baku.io.permissions.PermissionService;
 import examples.baku.io.permissions.R;
 import examples.baku.io.permissions.discovery.DevicePickerActivity;
@@ -62,6 +67,7 @@ public class EmailActivity extends AppCompatActivity implements ServiceConnectio
     public static final String KEY_MESSAGES = "messages";
 
     private PermissionService mPermissionService;
+    private PermissionManager mPermissionManager;
     private String mDeviceId;
     private FirebaseDatabase mFirebaseDB;
     private DatabaseReference mMessagesRef;
@@ -156,10 +162,24 @@ public class EmailActivity extends AppCompatActivity implements ServiceConnectio
         mPermissionService = binder.getInstance();
         if (mPermissionService != null) {
             mDeviceId = mPermissionService.getDeviceId();
+            mPermissionManager = mPermissionService.getPermissionManager();
             mFirebaseDB = mPermissionService.getFirebaseDB();
             mMessagesRef = mFirebaseDB.getReference(KEY_DOCUMENTS).child(mDeviceId).child(KEY_EMAILS).child(KEY_MESSAGES);
             mMessagesRef.addValueEventListener(messagesValueListener);
             mMessagesRef.addChildEventListener(messageChildListener);
+
+            mPermissionManager.addOnRequestListener("documents/" + mDeviceId + "/emails/messages/*", new PermissionManager.OnRequestListener() {
+                @Override
+                public boolean onRequest(PermissionRequest request, Blessing blessing) {
+                    mInboxAdapter.notifyDataSetChanged();
+                    return true;
+                }
+
+                @Override
+                public void onRequestRemoved(PermissionRequest request, Blessing blessing) {
+                    mInboxAdapter.notifyDataSetChanged();
+                }
+            });
 
             //TEMP: example status
             mPermissionService.clearStatus(ComposeActivity.EXTRA_MESSAGE_PATH);
@@ -262,7 +282,7 @@ public class EmailActivity extends AppCompatActivity implements ServiceConnectio
             String focus = data.getStringExtra(DevicePickerActivity.EXTRA_DEVICE_ID);
             String path = data.getStringExtra(DevicePickerActivity.EXTRA_REQUEST_ARGS);
 
-            mPermissionService.getPermissionManager().bless(focus)
+            mPermissionManager.bless(focus)
                     .setPermissions(path, PermissionManager.FLAG_READ)
                     .setPermissions(path + "/message", PermissionManager.FLAG_WRITE)
                     .setPermissions(path + "/subject", PermissionManager.FLAG_WRITE);
@@ -341,6 +361,16 @@ public class EmailActivity extends AppCompatActivity implements ServiceConnectio
                     startActivityForResult(intent, 0);
                 }
             });
+
+            holder.mCardView.setCardBackgroundColor(Color.WHITE);
+            if(mPermissionManager != null){
+                String path = "documents/"+mDeviceId+"/emails/messages/"+item.getId() + "/*";
+                for(PermissionRequest request : mPermissionManager.getRequests(path)){
+                    holder.mCardView.setCardBackgroundColor(Color.GRAY);
+                    break;
+                }
+
+            }
 
         }
 

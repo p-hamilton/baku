@@ -49,8 +49,8 @@ public class PermissionManager {
 //    final Map<String, PermissionRequest.Builder> mActiveRequests = new HashMap<>();
     final Table<String, String, PermissionRequest.Builder> mActiveRequests = HashBasedTable.create();
 
-    final Multimap<String, OnRequestListener> mRequestListeners = HashMultimap.create();
-    final Multimap<String, OnRequestListener> mSubscribedRequests = HashMultimap.create();
+    final Multimap<String, OnRequestListener> mRequestListeners = HashMultimap.create(); //<path,, >
+    final Multimap<String, OnRequestListener> mSubscribedRequests = HashMultimap.create(); //<request id, >
 
     final Map<String, Blessing> mBlessings = new HashMap<>();
     //<targetId, blessingId>
@@ -127,19 +127,20 @@ public class PermissionManager {
         //root blessing
         for (Blessing.Rule rule : rootBlessing) {
             String path = rule.getPath();
-            if (mCachedPermissions.containsKey(path)) {
-                updatedPermissions.put(path, mCachedPermissions.get(path) | rule.getPermissions());
-            } else {
-                updatedPermissions.put(path, rule.getPermissions());
-            }
+//            if (mCachedPermissions.containsKey(path)) {
+//                updatedPermissions.put(path, mCachedPermissions.get(path) | rule.getPermissions());
+//            } else {
+            updatedPermissions.put(path, rule.getPermissions());
+//            }
         }
         //received blessings
         for (Blessing blessing : mBlessings.values()) {
             if (blessing.isSynched()) {
                 for (Blessing.Rule rule : blessing) {
                     String path = rule.getPath();
-                    String nearestAncestor = getNearestCommonAncestor(path, mCachedPermissions.keySet());
-                    int current = mCachedPermissions.get(nearestAncestor);
+                    String nearestAncestor = getNearestCommonAncestor(path, updatedPermissions.keySet());
+                    Integer current = updatedPermissions.get(nearestAncestor);
+                    current = current == null ? 0 : current;
                     if (updatedPermissions.containsKey(path)) {
                         current |= updatedPermissions.get(path);
                     }
@@ -254,13 +255,19 @@ public class PermissionManager {
         return null;
     }
 
+    public Set<PermissionRequest> getRequests(String path) {
+        Set<PermissionRequest> result = new HashSet<>();
+        for (PermissionRequest request : mRequests.values()) {
+            if (getAllPaths(request.getPath()).contains(path)) {
+                result.add(request);
+            }
+        }
+        return result;
+    }
+
 
     public Blessing getRootBlessing() {
         return rootBlessing;
-    }
-
-    public Blessing getBlessing(String target) {
-        return mBlessings.get(target);
     }
 
     //return a blessing interface for granting/revoking permissions
@@ -308,43 +315,47 @@ public class PermissionManager {
     public void grantRequest(PermissionRequest request) {
         Blessing blessing = bless(request.getSource());
         blessing.setPermissions(request.getPath(), request.getPermissions());
+        finishRequest(request.getId());
     }
 
     private void onRequestUpdated(DataSnapshot snapshot) {
         if (!snapshot.exists()) return;
 
         PermissionRequest request = snapshot.getValue(PermissionRequest.class);
-        if (request != null && request.getPath() != null && !mId.equals(request.getSource())) {    //ignore local requests
-            String rId = request.getId();
-            String source = request.getSource();
-            mRequests.put(rId, request);
+        if (request != null && request.getPath() != null) {
+            if (((getPermission(request.getPath()) & FLAG_WRITE) == FLAG_WRITE) || !mId.equals(request.getSource())) {    //ignore local requests)
+                return;
+            }
+                String rId = request.getId();
+                String source = request.getSource();
+                mRequests.put(rId, request);
 
-            if (mSubscribedRequests.containsKey(rId)) {
-                for (OnRequestListener listener : mSubscribedRequests.get(rId)) {
-                    if (!listener.onRequest(request, bless(source))) {
-                        //cancel subscription
-                        mSubscribedRequests.remove(rId, listener);
+                if (mSubscribedRequests.containsKey(rId)) {
+                    for (OnRequestListener listener : new HashSet<>(mSubscribedRequests.get(rId))) {
+                        if (!listener.onRequest(request, bless(source))) {
+                            //cancel subscription
+                            mSubscribedRequests.remove(rId, listener);
+                        }
                     }
-                }
-            } else {
-                for (String path : getAllPaths(request.getPath())) {
-                    for (OnRequestListener listener : mRequestListeners.get(path)) {
-                        if (listener.onRequest(request, bless(source))) {
-                            //add subscription
-                            mSubscribedRequests.put(request.getId(), listener);
+                } else {
+                    for (String path : getAllPaths(request.getPath())) {
+                        for (OnRequestListener listener : mRequestListeners.get(path)) {
+                            if (listener.onRequest(request, bless(source))) {
+                                //add subscription
+                                mSubscribedRequests.put(request.getId(), listener);
+                            }
                         }
                     }
                 }
             }
         }
-    }
 
     private void onRequestRemoved(DataSnapshot snapshot) {
         mRequests.remove(snapshot.getKey());
         PermissionRequest request = snapshot.getValue(PermissionRequest.class);
         String source = request.getSource();
         if (request != null && !mId.equals(source)) {    //ignore local requests
-            for (OnRequestListener listener : mSubscribedRequests.get(request.getId())) {
+            for (OnRequestListener listener : new HashSet<>(mSubscribedRequests.get(request.getId()))) {
                 mSubscribedRequests.remove(request.getId(), listener);
                 listener.onRequestRemoved(request, bless(source));
             }
@@ -433,18 +444,18 @@ public class PermissionManager {
 
     public void removeOnRequestListener(String path, OnRequestListener requestListener) {
         mRequestListeners.remove(path, requestListener);
-        for(String key : mSubscribedRequests.keySet()){
+        for (String key : mSubscribedRequests.keySet()) {
             mSubscribedRequests.remove(key, requestListener);
         }
     }
 
     public OnRequestListener addOnRequestListener(String path, OnRequestListener requestListener) {
         mRequestListeners.put(path, requestListener);
-        for(String rId: mRequests.keySet()){
+        for (String rId : mRequests.keySet()) {
             PermissionRequest request = mRequests.get(rId);
-            if(request != null){
+            if (request != null) {
                 String source = request.getSource();
-                if(requestListener.onRequest(request, bless(source))){
+                if (requestListener.onRequest(request, bless(source))) {
                     mSubscribedRequests.put(rId, requestListener);
                 }
             }
@@ -455,22 +466,22 @@ public class PermissionManager {
 
     public PermissionRequest.Builder request(String path, String group) {
         PermissionRequest.Builder builder = mActiveRequests.get(group, path);
-        if(builder == null){
+        if (builder == null) {
             builder = new PermissionRequest.Builder(mRequestsRef.push(), path, mId);
             mActiveRequests.put(group, path, builder);
         }
         return builder;
     }
 
-    public void cancelRequests(String group){
-        for(String path: mActiveRequests.row(group).keySet()){
+    public void cancelRequests(String group) {
+        for (String path : mActiveRequests.row(group).keySet()) {
             cancelRequest(group, path);
         }
     }
 
     public void cancelRequest(String group, String path) {
         PermissionRequest.Builder builder = mActiveRequests.remove(group, path);
-        if(builder != null){
+        if (builder != null) {
             builder.cancel();
         }
     }
