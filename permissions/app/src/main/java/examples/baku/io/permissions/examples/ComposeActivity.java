@@ -61,11 +61,7 @@ public class ComposeActivity extends AppCompatActivity implements ServiceConnect
     private DatabaseReference mMessageRef;
     private DatabaseReference mSyncedMessageRef;
 
-    private Blessing mPublicBlessing;
     private Blessing mCastBlessing;
-
-    String sourceId;
-
 
     EditText mToText;
     EditText mFrom;
@@ -171,7 +167,12 @@ public class ComposeActivity extends AppCompatActivity implements ServiceConnect
 
             JSONObject castArgs = new JSONObject();
             try {
-                mCastBlessing = mPermissionService.getPermissionManager().bless(focus)
+                //find most appropriate blessing to extend from
+                mCastBlessing = mPermissionManager.getBlessingFrom(mOwner, mDeviceId);
+                if(mCastBlessing == null){
+                    mCastBlessing = mPermissionManager.getRootBlessing();
+                }
+                mCastBlessing.bless(focus)
                         .setPermissions(mPath, PermissionManager.FLAG_READ)
                         .setPermissions(mPath + "/message", PermissionManager.FLAG_WRITE)
                         .setPermissions(mPath + "/subject", PermissionManager.FLAG_WRITE);
@@ -216,6 +217,12 @@ public class ComposeActivity extends AppCompatActivity implements ServiceConnect
                 mPath = "documents/" + mDeviceId + "/emails/messages/" + mId;
             }
 
+            //parse path to get owner
+            String[] pathElements = mPath.split("/");
+            if(pathElements != null && pathElements.length>1){
+                mOwner = pathElements[1];
+            }
+
             mMessageRef = mPermissionService.getFirebaseDB().getReference(mPath);
             mSyncedMessageRef = mMessageRef.child("syncedValues");
             mPermissionService.getPermissionManager().addPermissionEventListener(mPath, messagePermissionListener);
@@ -239,8 +246,8 @@ public class ComposeActivity extends AppCompatActivity implements ServiceConnect
                 }
             });
 
-//            mPublicBlessing = mPermissionService.getPermissionManager().bless("public")
-//                    .setPermissions(mPath + "/subject", PermissionManager.FLAG_READ);
+            mPublicBlessing = mPermissionManager.bless("public")
+                    .setPermissions(mPath + "/subject", PermissionManager.FLAG_READ);
 
             mPermissionManager.addOnRequestListener("documents/" + mDeviceId + "/emails/messages/"+mId+"/*", new PermissionManager.OnRequestListener() {
                 @Override

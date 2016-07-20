@@ -47,8 +47,6 @@ public class PermissionManager {
     private Blessing rootBlessing;
 
     final Map<String, PermissionRequest> mRequests = new HashMap<>();
-    //    final Multimap<String, PermissionRequest> mRequests = HashMultimap.create();
-//    final Map<String, PermissionRequest.Builder> mActiveRequests = new HashMap<>();
     final Table<String, String, PermissionRequest.Builder> mActiveRequests = HashBasedTable.create();
 
     final Multimap<String, OnRequestListener> mRequestListeners = HashMultimap.create(); //<path,, >
@@ -129,11 +127,7 @@ public class PermissionManager {
         //root blessing
         for (Blessing.Rule rule : rootBlessing) {
             String path = rule.getPath();
-//            if (mCachedPermissions.containsKey(path)) {
-//                updatedPermissions.put(path, mCachedPermissions.get(path) | rule.getPermissions());
-//            } else {
             updatedPermissions.put(path, rule.getPermissions());
-//            }
         }
         //received blessings
         for (Blessing blessing : mBlessings.values()) {
@@ -274,6 +268,16 @@ public class PermissionManager {
 
     public Map<String, Blessing> getBlessings() {
         return mBlessings;
+    }
+
+    //Convenience.. this
+    public Blessing getBlessingFrom(String source, String target){
+        for(Blessing blessing : mBlessings.values()){
+            if(source.equals(blessing.getSource()) && target.equals(blessing.getTarget())){
+                return blessing;
+            }
+        }
+        return null;
     }
 
     //return a blessing interface for granting/revoking permissions
@@ -485,7 +489,7 @@ public class PermissionManager {
     }
 
     public void cancelRequests(String group) {
-        for (String path : mActiveRequests.row(group).keySet()) {
+        for (String path : new HashSet<String>(mActiveRequests.row(group).keySet())) {
             cancelRequest(group, path);
         }
     }
