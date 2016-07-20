@@ -210,6 +210,7 @@ public class Blessing implements Iterable<Blessing.Rule> {
             }
         });
 
+        //get all previously granted blessings
         ref.addListenerForSingleValueEvent(new ValueEventListener() {
             @Override
             public void onDataChange(DataSnapshot dataSnapshot) {

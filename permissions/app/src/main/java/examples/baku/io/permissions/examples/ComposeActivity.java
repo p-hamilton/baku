@@ -232,7 +232,7 @@ public class ComposeActivity extends AppCompatActivity implements ServiceConnect
 
             mMessageRef = mPermissionService.getFirebaseDB().getReference(mPath);
             mSyncedMessageRef = mMessageRef.child("syncedValues");
-            mPermissionService.getPermissionManager().addPermissionEventListener(mPath, messagePermissionListener);
+            mPermissionManager.addPermissionEventListener(mPath, messagePermissionListener);
             wrapTextField(mToLayout, "to");
             wrapTextField(mFromLayout, "from");
             wrapTextField(mSubjectLayout, "subject");
@@ -253,8 +253,8 @@ public class ComposeActivity extends AppCompatActivity implements ServiceConnect
                 }
             });
 
-            mPublicBlessing = mPermissionManager.bless("public")
-                    .setPermissions(mPath + "/subject", PermissionManager.FLAG_READ);
+//            mPublicBlessing = mPermissionManager.bless("public")
+//                    .setPermissions(mPath + "/subject", PermissionManager.FLAG_READ);
 
             mPermissionManager.addOnRequestListener("documents/" + mDeviceId + "/emails/messages/" + mId + "/*", new PermissionManager.OnRequestListener() {
                 @Override
@@ -314,7 +314,7 @@ public class ComposeActivity extends AppCompatActivity implements ServiceConnect
             editContainer.setOnClickListener(new View.OnClickListener() {
                 @Override
                 public void onClick(View v) {
-                    mPermissionService.getPermissionManager().request(mPath + "/" + key, mDeviceId + mId)
+                    mPermissionManager.request(mPath + "/" + key, mDeviceId + mId)
                             .setPermissions(PermissionManager.FLAG_WRITE)
                             .udpate();
                 }
