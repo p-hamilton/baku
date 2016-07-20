@@ -150,6 +150,8 @@ public class PermissionService extends Service {
 
         mPermissionManager = new PermissionManager(mFirebaseDB.getReference(), mDeviceId);
 
+        mPermissionManager.getRootBlessing().setPermissions("documents/"+mDeviceId, PermissionManager.FLAG_READ | PermissionManager.FLAG_WRITE);
+
         mPermissionManager.join("public");
 
         mPermissionManager.addOnRequestListener("*", new PermissionManager.OnRequestListener() {

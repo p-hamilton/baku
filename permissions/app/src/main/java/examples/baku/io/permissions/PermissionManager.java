@@ -85,42 +85,10 @@ public class PermissionManager {
     public Blessing initRootBlessing() {
         final DatabaseReference deviceBlessingRef = mDatabaseRef.child(KEY_BLESSINGS).child(mId);
         rootBlessing = new Blessing(mId, null, deviceBlessingRef);
-        deviceBlessingRef.addValueEventListener(new ValueEventListener() {
-            @Override
-            public void onDataChange(DataSnapshot dataSnapshot) {
-                if (dataSnapshot.exists()) {
-                    rootBlessing.setSnapshot(dataSnapshot);
-                } else {  //reset
-                    rootBlessing.setTarget(mId);
-                    rootBlessing.setSource(null);
-                    rootBlessing.setPermissions("documents/" + mId, PermissionManager.FLAG_WRITE | PermissionManager.FLAG_READ);
-                }
-                refreshPermissions();
-            }
-
-            @Override
-            public void onCancelled(DatabaseError databaseError) {
-
-            }
-        });
+        rootBlessing.addListener(blessingChangedListner);
         return rootBlessing;
     }
 
-    void onBlessingUpdated(DataSnapshot snapshot) {
-        if (!snapshot.exists()) {
-            throw new IllegalArgumentException("snapshot value doesn't exist");
-        }
-        String key = snapshot.getKey();
-        Blessing blessing = mBlessings.get(key);
-        if (blessing == null) {
-            blessing = new Blessing(snapshot);
-            mBlessings.put(key, blessing);
-        } else {
-            blessing.setSnapshot(snapshot);
-        }
-
-        refreshPermissions();
-    }
 
     //TODO: optimize this mess. Currently, recalculating entire permission tree.
     void refreshPermissions() {
@@ -227,11 +195,6 @@ public class PermissionManager {
 
         }
     };
-
-    void onBlessingRemoved(DataSnapshot snapshot) {
-        Blessing removedBlessing = mBlessings.remove(snapshot.getKey());
-        refreshPermissions();
-    }
 
     static String getNearestCommonAncestor(String path, Set<String> ancestors) {
         if (path == null || ancestors.contains(path)) {
@@ -394,19 +357,28 @@ public class PermissionManager {
 
     private ChildEventListener blessingListener = new ChildEventListener() {
         @Override
-        public void onChildAdded(DataSnapshot dataSnapshot, String s) {
-            onBlessingUpdated(dataSnapshot);
-            mBlessingsRef.orderByChild("source").equalTo(s).addChildEventListener(grantedBlessingListener);
+        public void onChildAdded(DataSnapshot snapshot, String s) {
+            String key = snapshot.getKey();
+            Blessing blessing = mBlessings.get(key);
+            if (blessing == null) {
+                blessing = new Blessing(snapshot);
+                mBlessings.put(key, blessing);
+            }
+
+            blessing.addListener(blessingChangedListner);
         }
 
         @Override
         public void onChildChanged(DataSnapshot dataSnapshot, String s) {
-            onBlessingUpdated(dataSnapshot);
         }
 
         @Override
         public void onChildRemoved(DataSnapshot dataSnapshot) {
-            onBlessingRemoved(dataSnapshot);
+            Blessing removedBlessing = mBlessings.remove(dataSnapshot.getKey());
+            if(removedBlessing != null){
+                removedBlessing.removeListener(blessingChangedListner);
+                refreshPermissions();
+            }
         }
 
         @Override
@@ -419,6 +391,15 @@ public class PermissionManager {
 
         }
     };
+
+    private Blessing.OnBlessingUpdatedListener blessingChangedListner = new Blessing.OnBlessingUpdatedListener() {
+        @Override
+        public void onBlessingUpdated(Blessing blessing) {
+            refreshPermissions();
+        }
+    };
+
+
 
     public int getPermission(String path) {
         if (mCachedPermissions.containsKey(path))

@@ -30,6 +30,8 @@ import com.google.firebase.database.DataSnapshot;
 import com.google.firebase.database.DatabaseError;
 import com.google.firebase.database.DatabaseReference;
 import com.google.firebase.database.ValueEventListener;
+import com.joanzapata.iconify.IconDrawable;
+import com.joanzapata.iconify.fonts.MaterialIcons;
 
 import org.json.JSONException;
 import org.json.JSONObject;
@@ -120,6 +122,10 @@ public class ComposeActivity extends AppCompatActivity implements ServiceConnect
     public boolean onCreateOptionsMenu(Menu menu) {
         // Inflate the menu; this adds items to the action bar if it is present.
         getMenuInflater().inflate(R.menu.menu_compose, menu);
+        menu.findItem(R.id.action_cast).setIcon(
+                new IconDrawable(this, MaterialIcons.md_cast)
+                        .color(Color.WHITE)
+                        .actionBarSize());
         return true;
     }
 
@@ -170,7 +176,7 @@ public class ComposeActivity extends AppCompatActivity implements ServiceConnect
             try {
                 //find most appropriate blessing to extend from
                 mCastBlessing = mPermissionManager.getBlessingFrom(mOwner, mDeviceId);
-                if(mCastBlessing == null){
+                if (mCastBlessing == null) {
                     mCastBlessing = mPermissionManager.getRootBlessing();
                 }
                 mCastBlessing.bless(focus)
@@ -220,7 +226,7 @@ public class ComposeActivity extends AppCompatActivity implements ServiceConnect
 
             //parse path to get owner
             String[] pathElements = mPath.split("/");
-            if(pathElements != null && pathElements.length>1){
+            if (pathElements != null && pathElements.length > 1) {
                 mOwner = pathElements[1];
             }
 
@@ -236,7 +242,7 @@ public class ComposeActivity extends AppCompatActivity implements ServiceConnect
             mMessageRef.child("id").addValueEventListener(new ValueEventListener() {
                 @Override
                 public void onDataChange(DataSnapshot dataSnapshot) {
-                    if(!dataSnapshot.exists()){
+                    if (!dataSnapshot.exists()) {
                         finish();
                     }
                 }
@@ -250,7 +256,7 @@ public class ComposeActivity extends AppCompatActivity implements ServiceConnect
             mPublicBlessing = mPermissionManager.bless("public")
                     .setPermissions(mPath + "/subject", PermissionManager.FLAG_READ);
 
-            mPermissionManager.addOnRequestListener("documents/" + mDeviceId + "/emails/messages/"+mId+"/*", new PermissionManager.OnRequestListener() {
+            mPermissionManager.addOnRequestListener("documents/" + mDeviceId + "/emails/messages/" + mId + "/*", new PermissionManager.OnRequestListener() {
                 @Override
                 public boolean onRequest(PermissionRequest request, Blessing blessing) {
                     mRequests.put(request.getPath(), request);
@@ -288,10 +294,10 @@ public class ComposeActivity extends AppCompatActivity implements ServiceConnect
 
     }
 
-    void updateTextField(final String key){
-        String path = "documents/"+mDeviceId+"/emails/messages/"+mId+"/"+key;
+    void updateTextField(final String key) {
+        String path = "documents/" + mDeviceId + "/emails/messages/" + mId + "/" + key;
         Integer current = mPermissions.get(path);
-        if(current == null)
+        if (current == null)
             current = 0;
 
         TextInputLayout editContainer = mEditContainers.get(key);
@@ -309,7 +315,7 @@ public class ComposeActivity extends AppCompatActivity implements ServiceConnect
                 @Override
                 public void onClick(View v) {
                     mPermissionService.getPermissionManager().request(mPath + "/" + key, mDeviceId + mId)
-                            .setPermissions( PermissionManager.FLAG_WRITE)
+                            .setPermissions(PermissionManager.FLAG_WRITE)
                             .udpate();
                 }
             });
@@ -327,7 +333,7 @@ public class ComposeActivity extends AppCompatActivity implements ServiceConnect
 
     void wrapTextField(final TextInputLayout editContainer, final String key) {
         mEditContainers.put(key, editContainer);
-        final String path = "documents/"+mDeviceId+"/emails/messages/"+mId+"/"+key;
+        final String path = "documents/" + mDeviceId + "/emails/messages/" + mId + "/" + key;
 
         mPermissionService.getPermissionManager().addPermissionEventListener(mPath + "/" + key, new PermissionManager.OnPermissionChangeListener() {
             @Override
@@ -398,12 +404,12 @@ public class ComposeActivity extends AppCompatActivity implements ServiceConnect
             if (mCastBlessing != null) {
                 mCastBlessing.revokePermissions(mPath);
             }
-            if(mPublicBlessing != null){
+            if (mPublicBlessing != null) {
                 mPublicBlessing.revokePermissions(mPath);
             }
 
             //cancel all requests made from this activity
-            mPermissionService.getPermissionManager().cancelRequests(mDeviceId+mId);
+            mPermissionService.getPermissionManager().cancelRequests(mDeviceId + mId);
         }
         unbindService(this);
     }

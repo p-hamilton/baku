@@ -10,8 +10,10 @@ import com.google.firebase.database.DatabaseReference;
 import com.google.firebase.database.ValueEventListener;
 
 import java.util.HashMap;
+import java.util.HashSet;
 import java.util.Iterator;
 import java.util.Map;
+import java.util.Set;
 import java.util.Stack;
 
 /**
@@ -35,12 +37,21 @@ public class Blessing implements Iterable<Blessing.Rule> {
     final Map<String, Blessing> grantedBlessings = new HashMap<>();
     final private Map<String, PermissionReference> refCache = new HashMap<>();
 
+    final private Set<OnBlessingUpdatedListener> listeners = new HashSet<>();
+
+    public interface OnBlessingUpdatedListener{
+        void onBlessingUpdated(Blessing blessing);
+    }
+
     public Blessing(DataSnapshot snapshot) {
-        setSnapshot(snapshot);
-        this.id = snapshot.child("id").getValue(String.class);
-        this.target = snapshot.child("target").getValue(String.class);
+        setRef(snapshot.getRef());
+        String target = snapshot.child("target").getValue(String.class);
+        String source = null;
         if (snapshot.hasChild("source"))
-            this.source = snapshot.child("source").getValue(String.class);
+            source = snapshot.child("source").getValue(String.class);
+        setTarget(target);
+        setSource(source);
+        setSnapshot(snapshot);
     }
 
     public Blessing(String target, String source, DatabaseReference ref) {
@@ -48,36 +59,17 @@ public class Blessing implements Iterable<Blessing.Rule> {
         setId(ref.getKey());
         setSource(source);
         setTarget(target);
-        ref.addListenerForSingleValueEvent(new ValueEventListener() {
-            @Override
-            public void onDataChange(DataSnapshot dataSnapshot) {
-                setSnapshot(dataSnapshot);
-
-                //get all blessings previously granted by this
-                blessingsRef.orderByChild("source").equalTo(id).addListenerForSingleValueEvent(new ValueEventListener() {
-                    @Override
-                    public void onDataChange(DataSnapshot dataSnapshot) {
-                        for (DataSnapshot childSnap : dataSnapshot.getChildren()) {
-                            Blessing granted = new Blessing(childSnap);
-                            grantedBlessings.put(granted.getTarget(), granted);
-                        }
-                    }
-
-                    @Override
-                    public void onCancelled(DatabaseError databaseError) {
-
-                    }
-                });
-            }
-
-            @Override
-            public void onCancelled(DatabaseError databaseError) {
-                databaseError.toException().printStackTrace();
-            }
-        });
-
-
     }
+
+    public OnBlessingUpdatedListener addListener(OnBlessingUpdatedListener listener){
+        listeners.add(listener);
+        return listener;
+    }
+
+    public boolean removeListener(OnBlessingUpdatedListener listener){
+        return listeners.remove(listener);
+    }
+
 
     public boolean isSynched() {
         return snapshot != null;
@@ -108,7 +100,12 @@ public class Blessing implements Iterable<Blessing.Rule> {
                 @Override
                 public void onDataChange(DataSnapshot dataSnapshot) {
                     if(dataSnapshot.exists()){
-                        parentBlessing = new Blessing(dataSnapshot);
+                        if(parentBlessing == null){
+                            parentBlessing = new Blessing(dataSnapshot);
+                        }else{
+                            parentBlessing.setSnapshot(dataSnapshot);
+                        }
+                        notifyListeners();
                     }else{  //destroy self
                         remove();
                     }
@@ -118,6 +115,12 @@ public class Blessing implements Iterable<Blessing.Rule> {
 
                 }
             });
+        }
+    }
+
+    private void notifyListeners(){
+        for(OnBlessingUpdatedListener listener : listeners){
+            listener.onBlessingUpdated(this);
         }
     }
 
@@ -131,7 +134,6 @@ public class Blessing implements Iterable<Blessing.Rule> {
             throw new IllegalArgumentException("empty snapshot");
         }
         this.snapshot = snapshot;
-        setRef(snapshot.getRef());
     }
 
     public Blessing setPermissions(String path, int permissions) {
@@ -188,24 +190,71 @@ public class Blessing implements Iterable<Blessing.Rule> {
         return result;
     }
 
-    public void setRef(DatabaseReference ref) {
+    private void setRef(DatabaseReference ref) {
         this.ref = ref;
         this.blessingsRef = ref.getParent();
         this.rulesRef = ref.child(KEY_RULES);
+
+        ref.addValueEventListener(new ValueEventListener() {
+            @Override
+            public void onDataChange(DataSnapshot dataSnapshot) {
+                if(dataSnapshot.exists()){
+                    setSnapshot(dataSnapshot);
+                    notifyListeners();
+                }
+            }
+
+            @Override
+            public void onCancelled(DatabaseError databaseError) {
+
+            }
+        });
+
+        ref.addListenerForSingleValueEvent(new ValueEventListener() {
+            @Override
+            public void onDataChange(DataSnapshot dataSnapshot) {
+                setSnapshot(dataSnapshot);
+
+                //get all blessings previously granted by this
+                blessingsRef.orderByChild("source").equalTo(id).addListenerForSingleValueEvent(new ValueEventListener() {
+                    @Override
+                    public void onDataChange(DataSnapshot dataSnapshot) {
+                        for (DataSnapshot childSnap : dataSnapshot.getChildren()) {
+                            Blessing granted = new Blessing(childSnap);
+                            grantedBlessings.put(granted.getTarget(), granted);
+                        }
+                    }
+
+                    @Override
+                    public void onCancelled(DatabaseError databaseError) {
+
+                    }
+                });
+            }
+
+            @Override
+            public void onCancelled(DatabaseError databaseError) {
+                databaseError.toException().printStackTrace();
+            }
+        });
+
     }
 
     public int getPermissionAt(String path, int starting) {
         if (!isSynched()) {   //snapshot not retrieved
             return starting;
         }
-        if (path == null) {
-            throw new IllegalArgumentException("illegal path value");
-        }
-        String[] pathItems = path.split("/");
+
         DataSnapshot currentNode = snapshot.child(KEY_RULES);
         if (currentNode.hasChild(KEY_PERMISSIONS)) {
             starting |= currentNode.child(KEY_PERMISSIONS).getValue(Integer.class);
         }
+
+        if (path == null) { //return root node permissions
+            return starting;
+        }
+
+        String[] pathItems = path.split("/");
         for (int i = 0; i < pathItems.length; i++) {
             if (currentNode.hasChild(pathItems[i])) {
                 currentNode = currentNode.child(pathItems[i]);

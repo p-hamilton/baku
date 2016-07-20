@@ -17,7 +17,7 @@ import com.joanzapata.iconify.IconDrawable;
  */
 public class IconUtils {
 
-    private static final int defaultIconSize = 50;
+    private static final int defaultIconSize = 50;  //this number was chosen at random
 
     public static Icon iconFromDrawable(Drawable drawable) {
         int width = drawable.getIntrinsicWidth();
