@@ -11,6 +11,7 @@ import android.app.Service;
 import android.content.Context;
 import android.content.Intent;
 import android.content.ServiceConnection;
+import android.graphics.drawable.Icon;
 import android.os.Binder;
 import android.os.IBinder;
 import android.provider.Settings;
@@ -23,6 +24,9 @@ import com.google.firebase.database.DatabaseException;
 import com.google.firebase.database.DatabaseReference;
 import com.google.firebase.database.FirebaseDatabase;
 import com.google.firebase.database.ValueEventListener;
+import com.joanzapata.iconify.IconDrawable;
+import com.joanzapata.iconify.Iconify;
+import com.joanzapata.iconify.fonts.MaterialIcons;
 
 import org.json.JSONException;
 import org.json.JSONObject;
@@ -39,6 +43,7 @@ import examples.baku.io.permissions.examples.ComposeActivity;
 import examples.baku.io.permissions.examples.EmailActivity;
 import examples.baku.io.permissions.messenger.Messenger;
 import examples.baku.io.permissions.messenger.Message;
+import examples.baku.io.permissions.util.IconUtils;
 
 public class PermissionService extends Service {
 
@@ -94,6 +99,15 @@ public class PermissionService extends Service {
     private Map<String, ActionCallback> mActionListeners = new HashMap<>();
 
 
+    private Icon shareIcon;
+    private Icon zoomIcon;
+    private Icon closeIcon;
+    private Icon keyIcon;
+    private Icon grantIcon;
+    private Icon deviceIcon;
+    private Icon castIcon;
+
+
     public interface ActionCallback {
         void onAction(Intent intent);
     }
@@ -126,6 +140,13 @@ public class PermissionService extends Service {
         mDevicesReference = mFirebaseDB.getReference("_devices");
 
 
+        shareIcon = IconUtils.iconFromDrawable(new IconDrawable(PermissionService.this, MaterialIcons.md_share));
+        zoomIcon = IconUtils.iconFromDrawable(new IconDrawable(PermissionService.this, MaterialIcons.md_zoom_in));
+        closeIcon = IconUtils.iconFromDrawable(new IconDrawable(PermissionService.this, MaterialIcons.md_close));
+        keyIcon = IconUtils.iconFromDrawable(new IconDrawable(PermissionService.this, MaterialIcons.md_vpn_key));
+        grantIcon = IconUtils.iconFromDrawable(new IconDrawable(PermissionService.this, MaterialIcons.md_check));
+        deviceIcon = IconUtils.iconFromDrawable(new IconDrawable(PermissionService.this, MaterialIcons.md_phone_android));
+        castIcon = IconUtils.iconFromDrawable(new IconDrawable(PermissionService.this, MaterialIcons.md_cast));
 
         mPermissionManager = new PermissionManager(mFirebaseDB.getReference(), mDeviceId);
 
@@ -155,10 +176,12 @@ public class PermissionService extends Service {
                 PendingIntent rejectRequestPendingIntent = PendingIntent.getService(PermissionService.this, mActionCounter++, rejectRequestIntent, PendingIntent.FLAG_CANCEL_CURRENT);
 
                 mNotificationManager.cancel(nId);
+
+
                 Notification notification = new Notification.Builder(PermissionService.this)
-                        .setSmallIcon(R.drawable.ic_vpn_key_black_24dp)
+                        .setSmallIcon( keyIcon)
                         .setContentTitle("Permission request from " + sourceName)
-                        .addAction(new Notification.Action.Builder(R.drawable.ic_check_black_24dp, "Grant", acceptRequestPendingIntent).build())
+                        .addAction(new Notification.Action.Builder(grantIcon , "Grant", acceptRequestPendingIntent).build())
 //                        .addAction(new Notification.Action.Builder(R.drawable.ic_close_black_24dp, "Reject", rejectRequestPendingIntent).build())
                         .setDeleteIntent(rejectRequestPendingIntent)
                         .setVibrate(new long[]{100})
@@ -204,7 +227,6 @@ public class PermissionService extends Service {
         DeviceData device = mDiscovered.get(dId);
         String title = device.getName();
         String subtitle = device.getId();   //default
-        int icon = R.drawable.ic_phone_android_black_24dp;
 
         Intent dismissIntent = new Intent(this, PermissionService.class);
         dismissIntent.putExtra("type", "dismiss");
@@ -214,7 +236,7 @@ public class PermissionService extends Service {
         Notification.Builder notificationBuilder = new Notification.Builder(this)
                 .setContentTitle(title)
                 .setContentText(subtitle)
-                .setSmallIcon(icon)
+                .setSmallIcon(deviceIcon)
                 .setVibrate(new long[]{100})
                 .setPriority(Notification.PRIORITY_MAX)
                 .setDeleteIntent(dismissPending);
@@ -223,7 +245,7 @@ public class PermissionService extends Service {
         if (mLocalDevice != null && mLocalDevice.getStatus().containsKey(ComposeActivity.EXTRA_MESSAGE_PATH)) {
             final String localPath = mLocalDevice.getStatus().get(ComposeActivity.EXTRA_MESSAGE_PATH);
             final String focus = device.getId();
-            notificationBuilder.addAction(createActionCallback(R.drawable.ic_cast_black_24dp, "Cast Message", "castMessage", new ActionCallback() {
+            notificationBuilder.addAction(createActionCallback(castIcon, "Cast Message", "castMessage", new ActionCallback() {
                 @Override
                 public void onAction(Intent intent) {
                     try {
@@ -243,14 +265,14 @@ public class PermissionService extends Service {
             Intent emailIntent = new Intent(PermissionService.this, ComposeActivity.class);
             emailIntent.putExtra(ComposeActivity.EXTRA_MESSAGE_PATH, focusPath);
             emailIntent.setFlags(Intent.FLAG_ACTIVITY_NEW_TASK);
-            notificationBuilder.addAction(new Notification.Action.Builder(R.drawable.ic_cast_black_24dp, "Pull Message", PendingIntent.getActivity(this, 0, emailIntent, PendingIntent.FLAG_CANCEL_CURRENT)).build());
+            notificationBuilder.addAction(new Notification.Action.Builder(castIcon, "Pull Message", PendingIntent.getActivity(this, 0, emailIntent, PendingIntent.FLAG_CANCEL_CURRENT)).build());
         }
 
         Notification notification = notificationBuilder.build();
         mNotificationManager.notify(FOCUS_NOTIFICATION, notification);
     }
 
-    private Notification.Action createActionCallback(int icon, String title, String actionId, ActionCallback callback) {
+    private Notification.Action createActionCallback(Icon icon, String title, String actionId, ActionCallback callback) {
         mActionListeners.put(actionId, callback);
         Intent actionIntent = new Intent(this, PermissionService.class);
         actionIntent.putExtra(EXTRA_COMMAND, "actionCallback");
@@ -304,10 +326,10 @@ public class PermissionService extends Service {
 
         Notification notification = new Notification.Builder(this)
                 .setContentIntent(contentPendingIntent)
-                .setSmallIcon(R.drawable.ic_share_black_24dp)
+                .setSmallIcon(shareIcon)
                 .setContentTitle("Discovery service running")
-                .addAction(new Notification.Action.Builder(R.drawable.ic_zoom_in_black_24dp, "Discover", discoverPendingIntent).build())
-                .addAction(new Notification.Action.Builder(R.drawable.ic_close_black_24dp, "Stop", closePendingIntent).build())
+                .addAction(new Notification.Action.Builder(zoomIcon, "Discover", discoverPendingIntent).build())
+                .addAction(new Notification.Action.Builder(closeIcon, "Stop", closePendingIntent).build())
                 .build();
         startForeground(FOREGROUND_NOTIFICATION_ID, notification);
     }
@@ -427,10 +449,10 @@ public class PermissionService extends Service {
                                 .setPriority(Notification.PRIORITY_HIGH)
                                 .setVibrate(new long[]{100})
                                 .setContentIntent(PendingIntent.getActivity(this, mActionCounter++, contentIntent, 0))
-                                .setSmallIcon(R.drawable.ic_vpn_key_black_24dp)
+                                .setSmallIcon(keyIcon)
                                 .setContentTitle(title)
-                                .addAction(new Notification.Action.Builder(R.drawable.ic_cast_black_24dp, "Cast", castPendingIntent).build())
-                                .addAction(new Notification.Action.Builder(R.drawable.ic_zoom_in_black_24dp, "Discover", discoverPendingIntent).build())
+                                .addAction(new Notification.Action.Builder(castIcon, "Cast", castPendingIntent).build())
+                                .addAction(new Notification.Action.Builder(zoomIcon, "Discover", discoverPendingIntent).build())
                                 .build();
 
                         refreshForegroundNotification(notification);

@@ -35,6 +35,7 @@ import com.google.firebase.database.DatabaseException;
 import com.google.firebase.database.DatabaseReference;
 import com.google.firebase.database.FirebaseDatabase;
 import com.google.firebase.database.ValueEventListener;
+import com.joanzapata.iconify.widget.IconTextView;
 
 import org.json.JSONException;
 import org.json.JSONObject;
@@ -336,7 +337,7 @@ public class EmailActivity extends AppCompatActivity implements ServiceConnectio
                 subtitleView.setText(item.getSubject());
             }
 
-            ImageView castButton = (ImageView) holder.mCardView.findViewById(R.id.card_trailing);
+            IconTextView castButton = (IconTextView) holder.mCardView.findViewById(R.id.card_trailing);
             castButton.setOnClickListener(new View.OnClickListener() {
                 @Override
                 public void onClick(View v) {
