@@ -144,6 +144,10 @@ public class Blessing implements Iterable<Blessing.Rule> {
         return this;
     }
 
+    public Blessing revoke(){
+        ref.removeValue();
+        return this;
+    }
 
     //delete all permission above path
     public Blessing revokePermissions(String path) {

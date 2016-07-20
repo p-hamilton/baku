@@ -62,6 +62,7 @@ public class ComposeActivity extends AppCompatActivity implements ServiceConnect
     private DatabaseReference mSyncedMessageRef;
 
     private Blessing mCastBlessing;
+    private Blessing mPublicBlessing;
 
     EditText mToText;
     EditText mFrom;
@@ -395,8 +396,10 @@ public class ComposeActivity extends AppCompatActivity implements ServiceConnect
         unlinkTextField("message");
         if (mPermissionService != null) {
             if (mCastBlessing != null) {
-                mPermissionService.getPermissionManager().revokeBlessing(mCastBlessing.getTarget());
-                mPermissionService.getPermissionManager().bless("public").revokePermissions(mPath);
+                mCastBlessing.revokePermissions(mPath);
+            }
+            if(mPublicBlessing != null){
+                mPublicBlessing.revokePermissions(mPath);
             }
 
             //cancel all requests made from this activity

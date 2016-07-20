@@ -93,6 +93,7 @@ public class PermissionManager {
                 } else {  //reset
                     rootBlessing.setTarget(mId);
                     rootBlessing.setSource(null);
+                    rootBlessing.setPermissions("documents/" + mId, PermissionManager.FLAG_WRITE | PermissionManager.FLAG_READ);
                 }
                 refreshPermissions();
             }
