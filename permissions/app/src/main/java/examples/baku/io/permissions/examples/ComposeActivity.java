@@ -175,7 +175,7 @@ public class ComposeActivity extends AppCompatActivity implements ServiceConnect
             JSONObject castArgs = new JSONObject();
             try {
                 //find most appropriate blessing to extend from
-                mCastBlessing = mPermissionManager.getBlessingFrom(mOwner, mDeviceId);
+                mCastBlessing = mPermissionManager.getBlessing(mOwner, mDeviceId);
                 if (mCastBlessing == null) {
                     mCastBlessing = mPermissionManager.getRootBlessing();
                 }

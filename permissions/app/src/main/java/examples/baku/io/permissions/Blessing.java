@@ -9,6 +9,7 @@ import com.google.firebase.database.DatabaseError;
 import com.google.firebase.database.DatabaseReference;
 import com.google.firebase.database.ValueEventListener;
 
+import java.util.Collection;
 import java.util.HashMap;
 import java.util.HashSet;
 import java.util.Iterator;
@@ -24,50 +25,90 @@ public class Blessing implements Iterable<Blessing.Rule> {
     private static final String KEY_PERMISSIONS = "_permissions";
     private static final String KEY_RULES = "rules";
 
+    private PermissionManager permissionManager;
+
     private String id;
     //    private String pattern;
     private String source;
     private String target;
     private DatabaseReference ref;
-    private DatabaseReference blessingsRef;
+    //    private DatabaseReference blessingsRef;
     private DatabaseReference rulesRef;
     private DataSnapshot snapshot;
 
     private Blessing parentBlessing;
-    final Map<String, Blessing> grantedBlessings = new HashMap<>();
+//    final Map<String, Blessing> grantedBlessings = new HashMap<>();
     final private Map<String, PermissionReference> refCache = new HashMap<>();
 
-    final private Set<OnBlessingUpdatedListener> listeners = new HashSet<>();
+    final private Set<OnBlessingUpdatedListener> blessingListeners = new HashSet<>();
 
-    public interface OnBlessingUpdatedListener{
+    public interface OnBlessingUpdatedListener {
         void onBlessingUpdated(Blessing blessing);
+        void onBlessingRemoved(Blessing blessing);
     }
 
-    public Blessing(DataSnapshot snapshot) {
-        setRef(snapshot.getRef());
+    private Blessing(PermissionManager permissionManager, String id, String source, String target) {
+        this.permissionManager = permissionManager;
+        permissionManager.putBlessing(source, target, this);
+        if (id == null) {
+//            setRef(permissionManager.getBlessingsRef().push());
+            //TEMP: use a combination of source and target for debugging
+            setRef(permissionManager.getBlessingsRef().child(source + "__" + target));
+            id = this.ref.getKey();
+
+        } else {
+            setRef(permissionManager.getBlessingsRef().child(id));
+        }
+        setId(id);
+        setSource(source);
+        setTarget(target);
+    }
+
+    public static Blessing create(PermissionManager permissionManager, String source, String target) {
+        Blessing blessing = permissionManager.getBlessing(source, target);
+        if (blessing == null) {
+            blessing = new Blessing(permissionManager, null, source, target);
+        }
+        return blessing;
+    }
+
+    //root blessings have no source blessing and their id is the same as their target
+    public static Blessing createRoot(PermissionManager permissionManager, String target) {
+        Blessing blessing = permissionManager.getBlessing(null, target);
+        if (blessing == null) {
+            blessing = new Blessing(permissionManager, target, null, target);
+        }
+        return blessing;
+    }
+
+    public static Blessing fromSnapshot(PermissionManager permissionManager, DataSnapshot snapshot) {
+        String id = snapshot.getKey();
         String target = snapshot.child("target").getValue(String.class);
         String source = null;
         if (snapshot.hasChild("source"))
             source = snapshot.child("source").getValue(String.class);
-        setTarget(target);
-        setSource(source);
-        setSnapshot(snapshot);
+        Blessing blessing = permissionManager.getBlessing(source, target);
+        if (blessing == null) {
+            blessing = new Blessing(permissionManager, id, source, target);
+        }
+        return blessing;
     }
 
-    public Blessing(String target, String source, DatabaseReference ref) {
-        setRef(ref);
-        setId(ref.getKey());
-        setSource(source);
-        setTarget(target);
-    }
-
-    public OnBlessingUpdatedListener addListener(OnBlessingUpdatedListener listener){
-        listeners.add(listener);
+    public OnBlessingUpdatedListener addListener(OnBlessingUpdatedListener listener) {
+        blessingListeners.add(listener);
         return listener;
     }
 
-    public boolean removeListener(OnBlessingUpdatedListener listener){
-        return listeners.remove(listener);
+    public boolean addListeners(Collection<OnBlessingUpdatedListener> listeners) {
+        return this.blessingListeners.addAll(listeners);
+    }
+
+    public boolean removeListener(OnBlessingUpdatedListener listener) {
+        return blessingListeners.remove(listener);
+    }
+
+    public boolean removeListeners(Collection<OnBlessingUpdatedListener> listeners){
+        return blessingListeners.removeAll(listeners);
     }
 
 
@@ -92,34 +133,34 @@ public class Blessing implements Iterable<Blessing.Rule> {
         ref.child("id").setValue(id);
     }
 
-    public void setSource(String source) {
-        this.source = source;
-        ref.child("source").setValue(source);
-        if(source != null){
-            blessingsRef.child(source).addValueEventListener(new ValueEventListener() {
-                @Override
-                public void onDataChange(DataSnapshot dataSnapshot) {
-                    if(dataSnapshot.exists()){
-                        if(parentBlessing == null){
-                            parentBlessing = new Blessing(dataSnapshot);
-                        }else{
-                            parentBlessing.setSnapshot(dataSnapshot);
-                        }
-                        notifyListeners();
-                    }else{  //destroy self
-                        remove();
-                    }
-                }
-                @Override
-                public void onCancelled(DatabaseError databaseError) {
+    private void setSource(String source) {
+        if (this.source == null && source != null) {
+            this.source = source;
+            ref.child("source").setValue(source);
+            parentBlessing = permissionManager.getBlessing(source);
 
-                }
-            });
+            if(parentBlessing == null){ //retrieve, if manager isn't tracking blessing
+                permissionManager.getBlessingsRef().child(source).addListenerForSingleValueEvent(new ValueEventListener() {
+                    @Override
+                    public void onDataChange(DataSnapshot dataSnapshot) {
+                        if (dataSnapshot.exists()) {
+                            parentBlessing = Blessing.fromSnapshot(permissionManager, dataSnapshot);
+                        } else {  //destroy self if source doesn't exist
+                            revoke();
+                        }
+                    }
+                    @Override
+                    public void onCancelled(DatabaseError databaseError) {
+
+                    }
+                });
+            }
         }
+
     }
 
-    private void notifyListeners(){
-        for(OnBlessingUpdatedListener listener : listeners){
+    private void notifyListeners() {
+        for (OnBlessingUpdatedListener listener : blessingListeners) {
             listener.onBlessingUpdated(this);
         }
     }
@@ -129,7 +170,7 @@ public class Blessing implements Iterable<Blessing.Rule> {
         ref.child("target").setValue(target);
     }
 
-    public void setSnapshot(DataSnapshot snapshot) {
+    private void setSnapshot(DataSnapshot snapshot) {
         if (!snapshot.exists()) {
             throw new IllegalArgumentException("empty snapshot");
         }
@@ -146,7 +187,13 @@ public class Blessing implements Iterable<Blessing.Rule> {
         return this;
     }
 
-    public Blessing revoke(){
+    public Blessing revoke() {
+        if(parentBlessing != null){
+            parentBlessing.removeListeners(this.blessingListeners);
+        }
+        for(OnBlessingUpdatedListener listener : blessingListeners){
+            listener.onBlessingRemoved(this);
+        }
         ref.removeValue();
         return this;
     }
@@ -158,28 +205,10 @@ public class Blessing implements Iterable<Blessing.Rule> {
         } else {  //delete blessing
             rulesRef.removeValue();
         }
-        for (Blessing grantedBlessing : grantedBlessings.values()) {
-            grantedBlessing.revokePermissions(path);
-        }
         return this;
     }
 
-    private void remove() {
-        ref.removeValue();
-        for (Blessing child : grantedBlessings.values()) {
-            child.remove();
-        }
-    }
-
-    public Blessing revokeBlessing(String target) {
-        if (grantedBlessings.containsKey(target)) {
-            Blessing revokedBlessing = grantedBlessings.remove(target);
-            revokedBlessing.remove();
-        }
-        return this;
-    }
-
-    public PermissionReference getRef(String path) {
+    private PermissionReference getRef(String path) {
         PermissionReference result = null;
         if (refCache.containsKey(path)) {
             result = refCache.get(path);
@@ -192,53 +221,21 @@ public class Blessing implements Iterable<Blessing.Rule> {
 
     private void setRef(DatabaseReference ref) {
         this.ref = ref;
-        this.blessingsRef = ref.getParent();
         this.rulesRef = ref.child(KEY_RULES);
 
         ref.addValueEventListener(new ValueEventListener() {
             @Override
             public void onDataChange(DataSnapshot dataSnapshot) {
-                if(dataSnapshot.exists()){
+                if (dataSnapshot.exists()) {
                     setSnapshot(dataSnapshot);
                     notifyListeners();
                 }
             }
-
             @Override
             public void onCancelled(DatabaseError databaseError) {
 
             }
         });
-
-        //get all previously granted blessings
-        ref.addListenerForSingleValueEvent(new ValueEventListener() {
-            @Override
-            public void onDataChange(DataSnapshot dataSnapshot) {
-                setSnapshot(dataSnapshot);
-
-                //get all blessings previously granted by this
-                blessingsRef.orderByChild("source").equalTo(id).addListenerForSingleValueEvent(new ValueEventListener() {
-                    @Override
-                    public void onDataChange(DataSnapshot dataSnapshot) {
-                        for (DataSnapshot childSnap : dataSnapshot.getChildren()) {
-                            Blessing granted = new Blessing(childSnap);
-                            grantedBlessings.put(granted.getTarget(), granted);
-                        }
-                    }
-
-                    @Override
-                    public void onCancelled(DatabaseError databaseError) {
-
-                    }
-                });
-            }
-
-            @Override
-            public void onCancelled(DatabaseError databaseError) {
-                databaseError.toException().printStackTrace();
-            }
-        });
-
     }
 
     public int getPermissionAt(String path, int starting) {
@@ -266,7 +263,7 @@ public class Blessing implements Iterable<Blessing.Rule> {
                 starting |= currentNode.child(KEY_PERMISSIONS).getValue(Integer.class);
             }
         }
-        if(parentBlessing != null){
+        if (parentBlessing != null) {
             starting &= parentBlessing.getPermissionAt(path, 0);
         }
         return starting;
@@ -274,12 +271,9 @@ public class Blessing implements Iterable<Blessing.Rule> {
 
     //return a blessing interface for granting/revoking permissions
     public Blessing bless(String target) {
-        Blessing result = null;
-        if (grantedBlessings.containsKey(target)) {
-            result = grantedBlessings.get(target);
-        } else {
-            result = new Blessing(target, this.id, blessingsRef.push());
-            grantedBlessings.put(target, result);
+        Blessing result = permissionManager.getBlessing(getId(), target);
+        if(result == null){
+            result = Blessing.create(permissionManager, getId(), target);
         }
         return result;
     }
@@ -315,13 +309,13 @@ public class Blessing implements Iterable<Blessing.Rule> {
                     } else {
                         result.path = key;
                     }
-                } 
+                }
                 result.permissions = inheritedRule.permissions;
                 if (node.hasChild(KEY_PERMISSIONS)) {
                     result.permissions |= node.child(KEY_PERMISSIONS).getValue(Integer.class);
                 }
 
-                if(parentBlessing != null){
+                if (parentBlessing != null) {
                     //check valid
                     result.permissions &= parentBlessing.getPermissionAt(result.path, 0);
                 }
