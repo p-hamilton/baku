@@ -104,10 +104,16 @@ public class Blessing implements Iterable<Blessing.Rule> {
     }
 
     public boolean removeListener(OnBlessingUpdatedListener listener) {
+        if(parentBlessing != null){
+            parentBlessing.removeListener(listener);
+        }
         return blessingListeners.remove(listener);
     }
 
     public boolean removeListeners(Collection<OnBlessingUpdatedListener> listeners){
+        if(parentBlessing != null){
+            parentBlessing.removeListeners(listeners);
+        }
         return blessingListeners.removeAll(listeners);
     }
 
@@ -145,6 +151,7 @@ public class Blessing implements Iterable<Blessing.Rule> {
                     public void onDataChange(DataSnapshot dataSnapshot) {
                         if (dataSnapshot.exists()) {
                             parentBlessing = Blessing.fromSnapshot(permissionManager, dataSnapshot);
+                            parentBlessing.addListeners(blessingListeners);
                         } else {  //destroy self if source doesn't exist
                             revoke();
                         }
@@ -154,6 +161,8 @@ public class Blessing implements Iterable<Blessing.Rule> {
 
                     }
                 });
+            }else{
+                parentBlessing.addListeners(blessingListeners);
             }
         }
 

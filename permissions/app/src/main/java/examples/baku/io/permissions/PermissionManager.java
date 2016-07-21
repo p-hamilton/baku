@@ -497,7 +497,6 @@ public class PermissionManager {
 
     public interface OnPermissionChangeListener {
         void onPermissionChange(int current);
-
         void onCancelled(DatabaseError databaseError);
     }
 }

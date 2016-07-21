@@ -238,23 +238,8 @@ public class ComposeActivity extends AppCompatActivity implements ServiceConnect
             wrapTextField(mSubjectLayout, "subject");
             wrapTextField(mMessageLayout, "message");
 
-            //close if deleted
-            mMessageRef.child("id").addValueEventListener(new ValueEventListener() {
-                @Override
-                public void onDataChange(DataSnapshot dataSnapshot) {
-                    if (!dataSnapshot.exists()) {
-                        finish();
-                    }
-                }
-
-                @Override
-                public void onCancelled(DatabaseError databaseError) {
-                    finish();
-                }
-            });
-
-//            mPublicBlessing = mPermissionManager.bless("public")
-//                    .setPermissions(mPath + "/subject", PermissionManager.FLAG_READ);
+            mPublicBlessing = mPermissionManager.bless("public")
+                    .setPermissions(mPath + "/subject", PermissionManager.FLAG_READ);
 
             mPermissionManager.addOnRequestListener("documents/" + mDeviceId + "/emails/messages/" + mId + "/*", new PermissionManager.OnRequestListener() {
                 @Override
@@ -401,9 +386,6 @@ public class ComposeActivity extends AppCompatActivity implements ServiceConnect
         unlinkTextField("subject");
         unlinkTextField("message");
         if (mPermissionService != null) {
-            if (mCastBlessing != null) {
-                mCastBlessing.revokePermissions(mPath);
-            }
             if (mPublicBlessing != null) {
                 mPublicBlessing.revokePermissions(mPath);
             }
