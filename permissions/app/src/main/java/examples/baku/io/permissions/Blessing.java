@@ -20,7 +20,7 @@ import java.util.Stack;
 /**
  * Created by phamilton on 7/9/16.
  */
-public class Blessing implements Iterable<Blessing.Rule> {
+public class Blessing implements Iterable<Blessing.Rule>, ValueEventListener {
 
     private static final String KEY_PERMISSIONS = "_permissions";
     private static final String KEY_RULES = "rules";
@@ -38,9 +38,11 @@ public class Blessing implements Iterable<Blessing.Rule> {
 
     private Blessing parentBlessing;
 //    final Map<String, Blessing> grantedBlessings = new HashMap<>();
-    final private Map<String, PermissionReference> refCache = new HashMap<>();
+    final private Map<String, Integer> permissions = new HashMap<>();
 
     final private Set<OnBlessingUpdatedListener> blessingListeners = new HashSet<>();
+
+
 
     public interface OnBlessingUpdatedListener {
         void onBlessingUpdated(Blessing blessing);
@@ -49,7 +51,6 @@ public class Blessing implements Iterable<Blessing.Rule> {
 
     private Blessing(PermissionManager permissionManager, String id, String source, String target) {
         this.permissionManager = permissionManager;
-        permissionManager.putBlessing(source, target, this);
         if (id == null) {
 //            setRef(permissionManager.getBlessingsRef().push());
             //TEMP: use a combination of source and target for debugging
@@ -62,6 +63,8 @@ public class Blessing implements Iterable<Blessing.Rule> {
         setId(id);
         setSource(source);
         setTarget(target);
+
+        permissionManager.putBlessing(source, target, this);
     }
 
     public static Blessing create(PermissionManager permissionManager, String source, String target) {
@@ -187,12 +190,20 @@ public class Blessing implements Iterable<Blessing.Rule> {
     }
 
     public Blessing setPermissions(String path, int permissions) {
+        this.permissions.put(path, permissions);
         getRef(path).setPermission(permissions);
         return this;
     }
 
+    public void setPermissions(Map<String, Integer> permissions) {
+        for(String path : permissions.keySet()){
+            setPermissions(path, permissions.get(path));
+        }
+    }
+
     public Blessing clearPermissions(String path) {
         getRef(path).clearPermission();
+        this.permissions.remove(path);
         return this;
     }
 
@@ -203,6 +214,7 @@ public class Blessing implements Iterable<Blessing.Rule> {
         for(OnBlessingUpdatedListener listener : blessingListeners){
             listener.onBlessingRemoved(this);
         }
+        ref.removeEventListener(this);
         ref.removeValue();
         return this;
     }
@@ -218,33 +230,32 @@ public class Blessing implements Iterable<Blessing.Rule> {
     }
 
     private PermissionReference getRef(String path) {
-        PermissionReference result = null;
-        if (refCache.containsKey(path)) {
-            result = refCache.get(path);
-        } else {
-            result = new PermissionReference(rulesRef, path);
-            refCache.put(path, result);
-        }
-        return result;
+        return new PermissionReference(rulesRef, path);
     }
 
     private void setRef(DatabaseReference ref) {
         this.ref = ref;
         this.rulesRef = ref.child(KEY_RULES);
 
-        ref.addValueEventListener(new ValueEventListener() {
-            @Override
-            public void onDataChange(DataSnapshot dataSnapshot) {
-                if (dataSnapshot.exists()) {
-                    setSnapshot(dataSnapshot);
-                    notifyListeners();
-                }
-            }
-            @Override
-            public void onCancelled(DatabaseError databaseError) {
+        ref.addValueEventListener(this);
+    }
 
-            }
-        });
+    @Override
+    public void onDataChange(DataSnapshot dataSnapshot) {
+        if (dataSnapshot.exists()) {
+            setSnapshot(dataSnapshot);
+            notifyListeners();
+        }else{//reset values if deleted without calling revoke
+            //TODO: redundant
+            setId(this.id);
+            setSource(this.source);
+            setTarget(this.target);
+            setPermissions(new HashMap<String, Integer>(this.permissions));
+        }
+    }
+    @Override
+    public void onCancelled(DatabaseError databaseError) {
+
     }
 
     public int getPermissionAt(String path, int starting) {

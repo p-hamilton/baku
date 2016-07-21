@@ -10,7 +10,6 @@ import android.content.ServiceConnection;
 import android.graphics.Color;
 import android.os.Bundle;
 import android.os.IBinder;
-import android.provider.ContactsContract;
 import android.support.design.widget.FloatingActionButton;
 import android.support.v7.app.AppCompatActivity;
 import android.support.v7.widget.CardView;
@@ -24,7 +23,6 @@ import android.view.View;
 import android.view.Menu;
 import android.view.MenuItem;
 import android.view.ViewGroup;
-import android.widget.ImageView;
 import android.widget.TextView;
 
 import com.google.common.collect.Iterables;
@@ -41,11 +39,7 @@ import org.json.JSONException;
 import org.json.JSONObject;
 
 import java.util.ArrayList;
-import java.util.HashMap;
-import java.util.Iterator;
 import java.util.LinkedHashMap;
-import java.util.List;
-import java.util.Map;
 
 import examples.baku.io.permissions.Blessing;
 import examples.baku.io.permissions.PermissionManager;
@@ -291,6 +285,7 @@ public class EmailActivity extends AppCompatActivity implements ServiceConnectio
             try {
                 castArgs.put("activity", ComposeActivity.class.getSimpleName());
                 castArgs.put(ComposeActivity.EXTRA_MESSAGE_PATH, path);
+                mPermissionService.addToConstellation(focus);
                 mPermissionService.getMessenger().to(focus).emit("cast", castArgs.toString());
             } catch (JSONException e) {
                 e.printStackTrace();

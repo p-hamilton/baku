@@ -4,6 +4,8 @@
 
 package examples.baku.io.permissions;
 
+import android.util.Log;
+
 import com.google.common.base.Optional;
 import com.google.common.collect.HashBasedTable;
 import com.google.common.collect.HashMultimap;
@@ -51,7 +53,6 @@ public class PermissionManager {
     final Map<String, Blessing> mBlessings = new HashMap<>();
     //<source, target, blessing>
     final Table<String, String, Blessing> mBlessingsTable = HashBasedTable.create();
-//    final Set<Blessing> mGrantedBlessings = new HashSet<>();
 
     final Map<String, PermissionRequest> mRequests = new HashMap<>();
     final Table<String, String, PermissionRequest.Builder> mActiveRequests = HashBasedTable.create();
@@ -90,6 +91,7 @@ public class PermissionManager {
 
     //TODO: optimize this mess. Currently, recalculating entire permission tree.
     void refreshPermissions() {
+        Log.e("zzz", "refreshing");
         Map<String, Integer> updatedPermissions = new HashMap<>();
         //received blessings
         for (Blessing blessing : getReceivedBlessings()) {
@@ -157,34 +159,6 @@ public class PermissionManager {
         }
     }
 
-    private ChildEventListener grantedBlessingListener = new ChildEventListener() {
-        @Override
-        public void onChildAdded(DataSnapshot dataSnapshot, String s) {
-            if (dataSnapshot.exists()) {
-                Blessing grantedBlessing = Blessing.fromSnapshot(PermissionManager.this, dataSnapshot);
-            }
-        }
-
-        @Override
-        public void onChildChanged(DataSnapshot dataSnapshot, String s) {
-
-        }
-
-        @Override
-        public void onChildRemoved(DataSnapshot dataSnapshot) {
-
-        }
-
-        @Override
-        public void onChildMoved(DataSnapshot dataSnapshot, String s) {
-
-        }
-
-        @Override
-        public void onCancelled(DatabaseError databaseError) {
-
-        }
-    };
 
     static String getNearestCommonAncestor(String path, Set<String> ancestors) {
         if (path == null || ancestors.contains(path)) {
@@ -220,12 +194,12 @@ public class PermissionManager {
         return rootBlessing;
     }
 
-    public Collection<Blessing> getReceivedBlessings() {
-        return mBlessingsTable.column(mId).values();
+    public Set<Blessing> getReceivedBlessings() {
+        return new HashSet<>(mBlessingsTable.column(mId).values());
     }
 
-    public Collection<Blessing> getGrantedBlessings(String source) {
-        return mBlessingsTable.row(mId).values();
+    public Set<Blessing> getGrantedBlessings(String source) {
+        return new HashSet<>(mBlessingsTable.row(mId).values());
     }
 
     public Blessing putBlessing(String source, String target, Blessing blessing) {
@@ -419,7 +393,7 @@ public class PermissionManager {
 
     private int getCombinedPermission(String path) {
         int current = 0;
-        for (Blessing blessing : mBlessings.values()) {
+        for (Blessing blessing : getReceivedBlessings()) {
             current = blessing.getPermissionAt(path, current);
         }
         return current;
@@ -486,6 +460,14 @@ public class PermissionManager {
         PermissionRequest.Builder builder = mActiveRequests.remove(group, path);
         if (builder != null) {
             builder.cancel();
+        }
+    }
+
+    public void onDestroy(){
+        mBlessingsRef.removeEventListener(blessingListener);
+        mRequestsRef.removeEventListener(requestListener);
+        for(Blessing blessing : new HashSet<Blessing>(mBlessings.values())){
+            blessing.revoke();
         }
     }
 

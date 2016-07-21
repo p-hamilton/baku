@@ -16,6 +16,7 @@ import android.os.Binder;
 import android.os.IBinder;
 import android.provider.Settings;
 import android.util.Log;
+import android.widget.Toast;
 
 import com.google.firebase.database.ChildEventListener;
 import com.google.firebase.database.DataSnapshot;
@@ -222,7 +223,7 @@ public class PermissionService extends Service {
     }
 
 
-    public void setFocus(String dId) {
+    public void addToConstellation(String dId) {
         mFocus = dId;
         if (!mDiscovered.containsKey(dId)) return;
 
@@ -406,7 +407,11 @@ public class PermissionService extends Service {
                 if (intent.hasExtra(EXTRA_REQUEST_ID)) {
                     String rId = intent.getStringExtra(EXTRA_REQUEST_ID);
                     PermissionRequest request = mPermissionManager.mRequests.get(rId);
-                    mPermissionManager.grantRequest(request);
+                    if(request != null){
+                        mPermissionManager.grantRequest(request);
+                    }else{
+                        Toast.makeText(getApplicationContext(), "Expired request", 0).show();
+                    }
                 }
                 if (intent.hasExtra(EXTRA_NOTIFICATION_ID)) {
                     mNotificationManager.cancel(intent.getIntExtra(EXTRA_NOTIFICATION_ID, -1));
@@ -418,10 +423,15 @@ public class PermissionService extends Service {
                 }
 
             } else if ("dismiss".equals(type)) {
-                Message request = new Message("disassociate");
-                request.setTarget(mFocus);
-//                sendRequest(request);
-                setFocus(null);
+                String dId = intent.getStringExtra("deviceId");
+                if(dId != null){
+                    //revoke all blessings
+                    for(Blessing blessing: mPermissionManager.getReceivedBlessings()){
+                        blessing.bless(dId).revoke();
+                    }
+                }
+
+                //remove blessings from
 
 
             } else if ("close".equals(type)) {
@@ -559,6 +569,15 @@ public class PermissionService extends Service {
         }
     }
 
+
+    @Override
+    public void onDestroy() {
+        //TODO: clean up firebase listeners in permission manager.
+        if(mPermissionManager != null){
+            mPermissionManager.onDestroy();
+        }
+        super.onDestroy();
+    }
 
     public static void start(Context context) {
         context.startService(new Intent(context, PermissionService.class));

@@ -22,14 +22,11 @@ import android.view.Menu;
 import android.view.MenuItem;
 import android.view.View;
 import android.widget.EditText;
-import android.widget.Toast;
 
 import com.google.common.collect.HashMultimap;
 import com.google.common.collect.Multimap;
-import com.google.firebase.database.DataSnapshot;
 import com.google.firebase.database.DatabaseError;
 import com.google.firebase.database.DatabaseReference;
-import com.google.firebase.database.ValueEventListener;
 import com.joanzapata.iconify.IconDrawable;
 import com.joanzapata.iconify.fonts.MaterialIcons;
 
@@ -37,7 +34,6 @@ import org.json.JSONException;
 import org.json.JSONObject;
 
 import java.util.HashMap;
-import java.util.Map;
 import java.util.UUID;
 
 import examples.baku.io.permissions.Blessing;
@@ -185,6 +181,7 @@ public class ComposeActivity extends AppCompatActivity implements ServiceConnect
                         .setPermissions(mPath + "/subject", PermissionManager.FLAG_WRITE);
                 castArgs.put("activity", ComposeActivity.class.getSimpleName());
                 castArgs.put(EXTRA_MESSAGE_PATH, mPath);
+                mPermissionService.addToConstellation(focus);
                 mPermissionService.getMessenger().to(focus).emit("cast", castArgs.toString());
             } catch (JSONException e) {
                 e.printStackTrace();
@@ -320,9 +317,10 @@ public class ComposeActivity extends AppCompatActivity implements ServiceConnect
         mEditContainers.put(key, editContainer);
         final String path = "documents/" + mDeviceId + "/emails/messages/" + mId + "/" + key;
 
-        mPermissionService.getPermissionManager().addPermissionEventListener(mPath + "/" + key, new PermissionManager.OnPermissionChangeListener() {
+        mPermissionManager.addPermissionEventListener(mPath + "/" + key, new PermissionManager.OnPermissionChangeListener() {
             @Override
             public void onPermissionChange(int current) {
+                Log.e("zzz", "permission change " + key +": " + current);
                 mPermissions.put(path, current);
                 updateTextField(key);
             }
@@ -391,7 +389,7 @@ public class ComposeActivity extends AppCompatActivity implements ServiceConnect
             }
 
             //cancel all requests made from this activity
-            mPermissionService.getPermissionManager().cancelRequests(mDeviceId + mId);
+            mPermissionManager.cancelRequests(mDeviceId + mId);
         }
         unbindService(this);
     }
