@@ -33,6 +33,10 @@ dependencies {
     compile 'com.google.guava:guava:19.0'
     compile 'org.bitbucket.cowwoc.diff-match-patch:diff-match-patch:1.0'
     compile 'com.joanzapata.iconify:android-iconify-material:2.2.2'
+<<<<<<< HEAD
+    compile 'com.1gravity:android-rteditor:1.6.2'
+=======
+>>>>>>> master
 }
 
 

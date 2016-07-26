@@ -18,7 +18,6 @@ public class PermissionApplication extends Application {
     public void onCreate() {
         super.onCreate();
         //Add icons
-        Iconify
-                .with(new MaterialModule());
+        Iconify.with(new MaterialModule());
     }
 }

@@ -226,7 +226,7 @@ public class Blessing implements Iterable<Blessing.Permission>, ValueEventListen
         if (parentBlessing != null) {
             parentBlessing.removeListener(parentListener);
         }
-        for (OnBlessingUpdatedListener listener : blessingListeners) {
+        for (OnBlessingUpdatedListener listener : new HashSet<>(blessingListeners)) {
             listener.onBlessingRemoved(this);
         }
         ref.removeEventListener(this);
@@ -505,9 +505,7 @@ public class Blessing implements Iterable<Blessing.Permission>, ValueEventListen
         public int getPermissions(String path) {
             path = Utils.getNearestCommonAncestor(path, new HashSet<String>(keySet()));
             Permission permission = get(path);
-            if (permission == null) {
-                return 0;
-            }
+            if (permission == null) return 0;
             int result = permission.getPermissions();
             if (parentTree != null) { //validate
                 result &= parentTree.getPermissions(path);

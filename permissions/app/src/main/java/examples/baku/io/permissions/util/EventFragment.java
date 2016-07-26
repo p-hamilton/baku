@@ -10,14 +10,14 @@ import android.os.Bundle;
 
 /**
  * Created by phamilton on 6/26/16.
- *
+ * <p/>
  * Fragment that requires the binding context to implement an event handler.
  */
-public class EventFragment extends Fragment{
+public class EventFragment extends Fragment {
 
     EventFragmentListener mListener;
 
-    public interface EventFragmentListener{
+    public interface EventFragmentListener {
         boolean onFragmentEvent(int action, Bundle args, EventFragment fragment);
     }
 
@@ -31,8 +31,8 @@ public class EventFragment extends Fragment{
         }
     }
 
-    public boolean onEvent(int action, Bundle args){
-        if(mListener == null)
+    public boolean onEvent(int action, Bundle args) {
+        if (mListener == null)
             return false;
         return mListener.onFragmentEvent(action, args, this);
     }
