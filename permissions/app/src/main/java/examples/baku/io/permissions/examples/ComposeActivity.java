@@ -17,7 +17,6 @@ import android.support.v7.app.AppCompatActivity;
 import android.support.v7.widget.Toolbar;
 import android.text.Editable;
 import android.text.TextWatcher;
-import android.util.Log;
 import android.view.Menu;
 import android.view.MenuItem;
 import android.view.View;
@@ -29,6 +28,12 @@ import com.google.firebase.database.DatabaseError;
 import com.google.firebase.database.DatabaseReference;
 import com.joanzapata.iconify.IconDrawable;
 import com.joanzapata.iconify.fonts.MaterialIcons;
+import com.onegravity.rteditor.RTEditText;
+import com.onegravity.rteditor.RTManager;
+import com.onegravity.rteditor.api.RTApi;
+import com.onegravity.rteditor.api.RTMediaFactoryImpl;
+import com.onegravity.rteditor.api.RTProxyImpl;
+import com.onegravity.rteditor.effects.Effects;
 
 import org.json.JSONException;
 import org.json.JSONObject;
@@ -77,12 +82,14 @@ public class ComposeActivity extends AppCompatActivity implements ServiceConnect
     HashMap<String, Integer> mPermissions = new HashMap<>();
     HashMap<String, SyncText> syncTexts = new HashMap<>();
 
+    RTManager mRTManager;
 
     @Override
     protected void onCreate(Bundle savedInstanceState) {
         super.onCreate(savedInstanceState);
         setContentView(R.layout.activity_compose);
         Toolbar toolbar = (Toolbar) findViewById(R.id.toolbar);
+        toolbar.setTitle("Compose");
         setSupportActionBar(toolbar);
         getSupportActionBar().setDisplayHomeAsUpEnabled(true);
         getSupportActionBar().setDisplayShowHomeEnabled(true);
@@ -110,6 +117,38 @@ public class ComposeActivity extends AppCompatActivity implements ServiceConnect
         mMessage = (EditText) findViewById(R.id.composeMessage);
         mMessageLayout = (TextInputLayout) findViewById(R.id.composeMessageLayout);
 
+        //setup rich text editor
+//        RTApi rtApi = new RTApi(this, new RTProxyImpl(this), new RTMediaFactoryImpl(this, true));
+//        mRTManager = new RTManager(rtApi, savedInstanceState);
+//        final RTEditText rtEditText = (RTEditText) findViewById(R.id.rtEditText);
+//        mRTManager.registerEditor(rtEditText, true);
+//        rtEditText.setRichTextEditing(true, "meow meow");
+//
+//        rtEditText.addTextChangedListener(new TextWatcher() {
+//            @Override
+//            public void beforeTextChanged(CharSequence s, int start, int count, int after) {
+//                rtEditText.applyEffect(Effects.BGCOLOR, Color.YELLOW);
+//            }
+//
+//            @Override
+//            public void onTextChanged(CharSequence s, int start, int before, int count) {
+//
+//            }
+//
+//            @Override
+//            public void afterTextChanged(Editable s) {
+//
+//            }
+//        });
+//        rtEditText.setOnFocusChangeListener(new View.OnFocusChangeListener() {
+//            @Override
+//            public void onFocusChange(View v, boolean hasFocus) {
+//                if(!hasFocus){
+//                    rtEditText.selectAll();
+//                    rtEditText.applyEffect(Effects.BGCOLOR, Color.TRANSPARENT);
+//                }
+//            }
+//        });
         bindService(new Intent(this, PermissionService.class), this, Service.BIND_AUTO_CREATE);
     }
 
@@ -187,7 +226,7 @@ public class ComposeActivity extends AppCompatActivity implements ServiceConnect
                 castArgs.put(EXTRA_MESSAGE_PATH, mPath);
                 mPermissionService.getMessenger().to(targetDevice).emit("cast", castArgs.toString());
 
-                mPermissionService.addToConstellation(targetDevice);
+                mPermissionService.updateConstellationDevice(targetDevice);
             } catch (JSONException e) {
                 e.printStackTrace();
             }

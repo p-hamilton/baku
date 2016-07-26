@@ -71,7 +71,7 @@ public class DevicePickerActivity extends AppCompatActivity implements EventFrag
                         }
                         setResult(0, result);
                     }else{
-                        mPermissionService.addToConstellation(dId);
+                        mPermissionService.updateConstellationDevice(dId);
                     }
                     finish();
                     return true;

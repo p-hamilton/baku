@@ -35,6 +35,7 @@ public class PermissionManager {
     public static final int FLAG_DEFAULT = 0;
     public static final int FLAG_WRITE = 1 << 0;
     public static final int FLAG_READ = 1 << 1;
+    public static final int FLAG_SUGGEST = 1 << 2;
 
     static final String KEY_PERMISSIONS = "_permissions";
     static final String KEY_REQUESTS = "_requests";

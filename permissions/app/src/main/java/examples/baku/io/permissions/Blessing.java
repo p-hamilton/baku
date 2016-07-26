@@ -226,7 +226,7 @@ public class Blessing implements Iterable<Blessing.Permission>, ValueEventListen
         if (parentBlessing != null) {
             parentBlessing.removeListener(parentListener);
         }
-        for (OnBlessingUpdatedListener listener : blessingListeners) {
+        for (OnBlessingUpdatedListener listener : new HashSet<>(blessingListeners)) {
             listener.onBlessingRemoved(this);
         }
         ref.removeEventListener(this);

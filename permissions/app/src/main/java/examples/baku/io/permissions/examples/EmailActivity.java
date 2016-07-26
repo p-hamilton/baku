@@ -81,6 +81,7 @@ public class EmailActivity extends AppCompatActivity implements ServiceConnectio
         super.onCreate(savedInstanceState);
         setContentView(R.layout.activity_permission);
         Toolbar toolbar = (Toolbar) findViewById(R.id.toolbar);
+        toolbar.setTitle("Inbox");
         setSupportActionBar(toolbar);
 
         FloatingActionButton fab = (FloatingActionButton) findViewById(R.id.fab);
@@ -288,7 +289,7 @@ public class EmailActivity extends AppCompatActivity implements ServiceConnectio
             try {
                 castArgs.put("activity", ComposeActivity.class.getSimpleName());
                 castArgs.put(ComposeActivity.EXTRA_MESSAGE_PATH, path);
-                mPermissionService.addToConstellation(targetDevice);
+                mPermissionService.updateConstellationDevice(targetDevice);
                 mPermissionService.getMessenger().to(targetDevice).emit("cast", castArgs.toString());
             } catch (JSONException e) {
                 e.printStackTrace();
