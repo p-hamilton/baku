@@ -39,6 +39,7 @@ import org.json.JSONException;
 import org.json.JSONObject;
 
 import java.util.HashMap;
+import java.util.LinkedList;
 import java.util.UUID;
 
 import examples.baku.io.permissions.Blessing;
@@ -48,6 +49,7 @@ import examples.baku.io.permissions.PermissionService;
 import examples.baku.io.permissions.R;
 import examples.baku.io.permissions.discovery.DevicePickerActivity;
 import examples.baku.io.permissions.synchronization.SyncText;
+import examples.baku.io.permissions.synchronization.SyncTextDiff;
 
 public class ComposeActivity extends AppCompatActivity implements ServiceConnection {
 
@@ -382,12 +384,12 @@ public class ComposeActivity extends AppCompatActivity implements ServiceConnect
     }
 
     void linkTextField(final EditText edit, final String key) {
-        final SyncText syncText = new SyncText(mSyncedMessageRef.child(key), mMessageRef.child(key));
+        final SyncText syncText = new SyncText(mDeviceId, mSyncedMessageRef.child(key), mMessageRef.child(key));
         syncTexts.put(key, syncText);
 
         syncText.setOnTextChangeListener(new SyncText.OnTextChangeListener() {
             @Override
-            public void onTextChange(final String currentText) {
+            public void onTextChange(final String currentText, final LinkedList<SyncTextDiff> diffs) {
                 final int sel = Math.min(edit.getSelectionStart(), currentText.length());
                 runOnUiThread(new Runnable() {
                     @Override

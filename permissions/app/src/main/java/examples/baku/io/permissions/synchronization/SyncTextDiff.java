@@ -7,16 +7,21 @@ import org.bitbucket.cowwoc.diffmatchpatch.DiffMatchPatch;
  */
 public class SyncTextDiff {
 
-    public final static int EQUAL = 0;
-    public final static int DELETE = 1;
-    public final static int INSERT = 2;
+    public final static int DELETE = 0;
+    public final static int INSERT = 1;
+    public final static int EQUAL = 2;
 
-    private String source;
-    private String target;
-    private String text;
-    private int operation;
+    public String source;
+    public String text;
+    public int operation;
 
     public SyncTextDiff() {
+    }
+
+    public SyncTextDiff(String text, int operation, String source) {
+        this.text = text;
+        this.operation = operation;
+        this.source = source;
     }
 
     public String getSource() {
@@ -27,13 +32,6 @@ public class SyncTextDiff {
         this.source = source;
     }
 
-    public String getTarget() {
-        return target;
-    }
-
-    public void setTarget(String target) {
-        this.target = target;
-    }
 
     public String getText() {
         return text;
@@ -51,26 +49,34 @@ public class SyncTextDiff {
         this.operation = operation;
     }
 
-    public int length(){
+    public int length() {
         return text == null ? 0 : text.length();
     }
 
-    public static SyncTextDiff split(SyncTextDiff diff, int start){
+    public boolean compatible(SyncTextDiff other){
+        return compatible(other.operation, other.source);
+    }
+
+    public boolean compatible(int operation, String source) {
+        return operation == this.operation
+                && (source == null ? this.source == null : source.equals(this.source));
+    }
+
+    public static SyncTextDiff split(SyncTextDiff diff, int start) {
         SyncTextDiff result = new SyncTextDiff();
         result.setSource(diff.source);
         result.setOperation(diff.operation);
-        result.setTarget(diff.target);
         result.setText(diff.text.substring(0, start));
         diff.setText(diff.text.substring(start));
         return result;
     }
 
-    public static SyncTextDiff fromDiff(DiffMatchPatch.Diff diff, String src, String target){
+    public static SyncTextDiff fromDiff(DiffMatchPatch.Diff diff, String src, String target) {
         SyncTextDiff result = new SyncTextDiff();
         result.setText(diff.text);
         result.setSource(src);
         int op = EQUAL;
-        switch (diff.operation){
+        switch (diff.operation) {
             case DELETE:
                 op = SyncTextDiff.DELETE;
                 break;
