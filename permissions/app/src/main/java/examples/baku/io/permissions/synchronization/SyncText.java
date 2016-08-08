@@ -103,14 +103,6 @@ public class SyncText {
         return result;
     }
 
-    public int getVer() {
-        return ver;
-    }
-
-    public void setVer(int ver) {
-        this.ver = ver;
-    }
-
     public void setOnTextChangeListener(OnTextChangeListener onTextChangeListener) {
         this.mOnTextChangeListener = onTextChangeListener;
     }
@@ -131,32 +123,16 @@ public class SyncText {
                 patch.setSource(mLocalSource);
             }
             mPatchesRef.push().setValue(patch);
-            return ver + 1;
+            return patch.getVer();
         }
         return -1;
     }
 
-//    private void processPatch(SyncTextPatch patch) {
-//
-//
-//
-//        if(updateCurrent(patch)){
-//
-//        }
-//
-//        LinkedList<DiffMatchPatch.Patch> remotePatch = new LinkedList<>(diffMatchPatch.patchFromText(patch.getPatch()));
-//        Object[] results = diffMatchPatch.patchApply(remotePatch, this.text);
-//        //TODO: check results
-//        if (results != null && results.length > 0 && results[0] instanceof String) {
-//            String patchedString = (String) results[0];
-//            this.ver = v;
-//            this.text = patchedString;
-//            updateCurrent();
-//        }
-//    }
-
+    //TODO: this method currently waits for server confirmation to notify listeners. Ideally, it should notify immediately and revert on failure
     private void updateCurrent() {
         final String text = getFinalText();
+        final LinkedList<SyncTextDiff> diffs = new LinkedList<>(this.diffs);
+        final int ver = this.ver;
         mSyncRef.child(KEY_CURRENT).runTransaction(new Transaction.Handler() {
             @Override
             public Transaction.Result doTransaction(MutableData currentData) {
@@ -330,7 +306,7 @@ public class SyncText {
         for (DiffMatchPatch.Diff current : diffs) {
             int operation = current.operation.ordinal();
             String value = current.text;
-            Log.e("zz", "Value: " + value + " op: " + operation);
+//            Log.e("zz", "Value: " + value + " op: " + operation);
 
             if (current.operation == DiffMatchPatch.Operation.INSERT) {
                 if (hasWrite(source)) {
@@ -339,62 +315,65 @@ public class SyncText {
                     resultIterator.add(new SyncTextDiff(current.text, operation, source));
                 }
                 resultIterator.previous();
-                Log.e("zz", "ADDING3 " + current.text);
+//                Log.e("zz", "ADDING3 " + current.text);
                 if (resultIterator.hasNext()) {
-                    Log.e("zz", "NEXT3");
+//                    Log.e("zz", "NEXT3");
                     previousDiff = resultIterator.next();
                 }
             } else {
                 int length = value.length();
                 if (previousDiff == null) {
                     previousDiff = resultIterator.next();
-                    Log.e("zz", "NEXT");
+//                    Log.e("zz", "NEXT");
                 }
                 while (previousDiff.length() < length) {
                     if (current.operation == DiffMatchPatch.Operation.DELETE) {
                         if (hasWrite(source)) {
-                            Log.e("zz", "REMOVING " + previousDiff.text);
+//                            Log.e("zz", "REMOVING " + previousDiff.text);
                             resultIterator.remove();
                         } else {
-                            Log.e("zz", "REMOVING3");
+//                            Log.e("zz", "REMOVING3");
                             previousDiff.setOperation(operation);
                             previousDiff.setSource(source);
                         }
                     }
                     length -= previousDiff.length();
                     if (resultIterator.hasNext()) {
-                        Log.e("zz", "NEXT2");
+//                        Log.e("zz", "NEXT2");
                         previousDiff = resultIterator.next();
                     } else {
-                        Log.e("zz", "LENGTH " + length);
+//                        Log.e("zz", "LENGTH " + length);
                         break;
                     }
                 }
 
                 if (length != 0 && length != previousDiff.length()) {
-                    Log.e("zz", "Splitting " + previousDiff.text + " at " + length);
+//                    Log.e("zz", "Splitting " + previousDiff.text + " at " + length);
                     SyncTextDiff splitDiff = SyncTextDiff.split(previousDiff, length);
-                    Log.e("zz", splitDiff.text + " - " + previousDiff.text);
+//                    Log.e("zz",  previousDiff.text + " - " +splitDiff.text);
                     if (current.operation == DiffMatchPatch.Operation.DELETE) {
                         if (!hasWrite(source) && !source.equals(splitDiff.source)) {
                             splitDiff.setSource(source);
                             splitDiff.setOperation(operation);
-                            Log.e("zz", "ADDING " + splitDiff.text);
-                            resultIterator.add(splitDiff);
-                            previousDiff = resultIterator.previous();
+//                            Log.e("zz", "ADDING " + splitDiff.text);
+                        }else{
+                            resultIterator.remove();
+//                            Log.e("zz", "REMOVING3 " +previousDiff.text);
                         }
+                        resultIterator.add(splitDiff);
+                        previousDiff = resultIterator.previous();
                     } else {   //EQUAL, unchanged
-                        Log.e("zz", "ADDING2 " + splitDiff.text);
+//                        Log.e("zz", "ADDING2 " + previousDiff.text);
                         resultIterator.add(splitDiff);
                         previousDiff = resultIterator.previous();
                     }
                 } else {
                     if (resultIterator.hasNext()) {
                         previousDiff = resultIterator.next();
-                        Log.e("zz", "NEXt4 " +previousDiff.text);
+//                        Log.e("zz", "NEXt4 " +previousDiff.text);
                     }
                     if (current.operation == DiffMatchPatch.Operation.DELETE && hasWrite(source)) {
-                        Log.e("zz", "REMOVING2 " +previousDiff.text);
+//                        Log.e("zz", "REMOVING2 " +previousDiff.text);
                         resultIterator.remove();
                     }
                 }
@@ -416,7 +395,7 @@ public class SyncText {
                     neighbor = diff;
                 }
             }
-            Log.e("wtf", wtf);
+//            Log.e("wtf", wtf);
         }
 
         this.diffs = result;

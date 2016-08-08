@@ -132,6 +132,7 @@ public class PermissionedText extends FrameLayout implements PermissionManager.O
         syncText.setOnTextChangeListener(new SyncText.OnTextChangeListener() {
             @Override
             public void onTextChange(final String currentText, final LinkedList<SyncTextDiff> diffs, int ver) {
+                Log.e("V", "v"+ver);
                 if(ver >= version){
                     updateText(currentText, diffs);
                 }
@@ -157,6 +158,7 @@ public class PermissionedText extends FrameLayout implements PermissionManager.O
                     editText.setText(diffSpannable(diffs));
                     int sel = Math.min(prevSel, currentText.length());
                     if (sel > -1) {
+                        Log.e("wtf", prevSel + ":"+ sel + " [[ " + currentText.length() + " v" + version);
                         editText.setSelection(sel);
                     }
                     editText.addTextChangedListener(watcher);
@@ -176,6 +178,7 @@ public class PermissionedText extends FrameLayout implements PermissionManager.O
         @Override
         public void onTextChanged(CharSequence s, int start, int before, int count) {
             version = Math.max(version, syncText.update(s.toString()));
+            Log.e("v", "updating v"+version);
         }
 
         @Override
