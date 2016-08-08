@@ -13,6 +13,15 @@ public class SyncTextPatch{
     private int ver;
     private String patch;
     private String source;
+    private int permissions;
+
+    public int getPermissions() {
+        return permissions;
+    }
+
+    public void setPermissions(int permissions) {
+        this.permissions = permissions;
+    }
 
     public SyncTextPatch() {}
 

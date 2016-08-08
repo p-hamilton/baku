@@ -275,7 +275,7 @@ public class ComposeActivity extends AppCompatActivity implements ServiceConnect
             }
 
             mMessageRef = mPermissionService.getFirebaseDB().getReference(mPath);
-            mSyncedMessageRef = mMessageRef.child("_syncedValues");
+            mSyncedMessageRef = mPermissionService.getFirebaseDB().getReference("documents/" + mOwner + "/emails/syncedMessages/"+mId);
             mPermissionManager.addPermissionEventListener(mPath, messagePermissionListener);
             wrapTextField(mToLayout, "to");
             wrapTextField(mFromLayout, "from");
@@ -283,7 +283,7 @@ public class ComposeActivity extends AppCompatActivity implements ServiceConnect
             wrapTextField(mMessageLayout, "message");
 
             PermissionedText ptext = (PermissionedText)findViewById(R.id.permissionTest);
-            ptext.setSyncText(new SyncText(mDeviceId, mMessageRef.child("help"), null));
+            ptext.setSyncText(new SyncText(mDeviceId, mOwner.equals(mDeviceId) ? PermissionManager.FLAG_WRITE :PermissionManager.FLAG_SUGGEST, mMessageRef.child("help"), null));
 
             mPublicBlessing = mPermissionManager.bless("public")
                     .setPermissions(mPath + "/subject", PermissionManager.FLAG_READ);
@@ -388,7 +388,7 @@ public class ComposeActivity extends AppCompatActivity implements ServiceConnect
     }
 
     void linkTextField(final EditText edit, final String key) {
-        final SyncText syncText = new SyncText(mDeviceId, mSyncedMessageRef.child(key), mMessageRef.child(key));
+        final SyncText syncText = new SyncText(mDeviceId, PermissionManager.FLAG_SUGGEST, mSyncedMessageRef.child(key), mMessageRef.child(key));
         syncTexts.put(key, syncText);
 
         final TextWatcher watcher = new TextWatcher() {

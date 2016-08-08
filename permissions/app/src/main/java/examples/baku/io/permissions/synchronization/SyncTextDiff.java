@@ -11,17 +11,27 @@ public class SyncTextDiff {
     public final static int INSERT = 1;
     public final static int EQUAL = 2;
 
-    public String source;
     public String text;
     public int operation;
+    public String source;
+    public int permission;
 
     public SyncTextDiff() {
     }
 
-    public SyncTextDiff(String text, int operation, String source) {
+    public SyncTextDiff(String text, int operation, String source, int permission) {
         this.text = text;
         this.operation = operation;
         this.source = source;
+        this.permission = permission;
+    }
+
+    public int getPermission() {
+        return permission;
+    }
+
+    public void setPermission(int permission) {
+        this.permission = permission;
     }
 
     public String getSource() {

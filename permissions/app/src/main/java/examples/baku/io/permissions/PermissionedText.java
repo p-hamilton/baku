@@ -42,7 +42,7 @@ import examples.baku.io.permissions.synchronization.SyncTextDiff;
 /**
  * Created by phamilton on 7/26/16.
  */
-public class PermissionedText extends FrameLayout implements PermissionManager.OnPermissionChangeListener, PermissionManager.OnRequestListener {
+public class PermissionedText extends FrameLayout implements PermissionManager.OnPermissionChangeListener, PermissionManager.OnRequestListener, {
 
     private int permissions;
     final Set<PermissionRequest> requests = new HashSet<>();
@@ -50,7 +50,13 @@ public class PermissionedText extends FrameLayout implements PermissionManager.O
 
     private SyncText syncText;
     TextInputLayout textInputLayout;
-    EditText editText;
+    PermissionedEditText editText;
+
+    private OnSuggestionSelectedListener onSuggestionSelectedListener = null;
+
+    public interface OnSuggestionSelectedListener {
+        void onSelected(SyncTextDiff diff);
+    }
 
     public PermissionedText(Context context) {
         this(context, null, 0);
@@ -70,36 +76,11 @@ public class PermissionedText extends FrameLayout implements PermissionManager.O
 
         FrameLayout.LayoutParams params = new FrameLayout.LayoutParams(
                 LayoutParams.WRAP_CONTENT, FrameLayout.LayoutParams.WRAP_CONTENT);
-        editText = new EditText(context);
+        editText = new PermissionedEditText(context);
         editText.setId(View.generateViewId());
         editText.setLayoutParams(params);
         addView(editText, params);
     }
-
-//    Spannable diffSpannable(LinkedList<DiffMatchPatch.Diff> diffs) {
-//        SpannableStringBuilder result = new SpannableStringBuilder();
-//
-//        int start;
-//        String text;
-//        int color = Color.YELLOW;
-//        for (DiffMatchPatch.Diff diff : diffs) {
-//            start = result.length();
-//            text = diff.text;
-//            switch (diff.operation) {
-//                case DELETE:
-//                    result.append(text, new BackgroundColorSpan(color), Spannable.SPAN_EXCLUSIVE_EXCLUSIVE);
-//                    result.setSpan(new StrikethroughSpan(),start, start + text.length(), Spannable.SPAN_EXCLUSIVE_EXCLUSIVE);
-//                    break;
-//                case INSERT:
-//                    result.append(text, new BackgroundColorSpan(color), Spannable.SPAN_EXCLUSIVE_EXCLUSIVE);
-//                    break;
-//                case EQUAL:
-//                    result.append(text);
-//                    break;
-//            }
-//        }
-//        return result;
-//    }
 
     Spannable diffSpannable(LinkedList<SyncTextDiff> diffs) {
         SpannableStringBuilder result = new SpannableStringBuilder();
@@ -113,7 +94,7 @@ public class PermissionedText extends FrameLayout implements PermissionManager.O
             switch (diff.operation) {
                 case SyncTextDiff.DELETE:
                     result.append(text, new BackgroundColorSpan(color), Spannable.SPAN_EXCLUSIVE_EXCLUSIVE);
-                    result.setSpan(new StrikethroughSpan(),start, start + text.length(), Spannable.SPAN_EXCLUSIVE_EXCLUSIVE);
+                    result.setSpan(new StrikethroughSpan(), start, start + text.length(), Spannable.SPAN_EXCLUSIVE_EXCLUSIVE);
                     break;
                 case SyncTextDiff.INSERT:
                     result.append(text, new BackgroundColorSpan(color), Spannable.SPAN_EXCLUSIVE_EXCLUSIVE);
@@ -132,14 +113,20 @@ public class PermissionedText extends FrameLayout implements PermissionManager.O
         syncText.setOnTextChangeListener(new SyncText.OnTextChangeListener() {
             @Override
             public void onTextChange(final String currentText, final LinkedList<SyncTextDiff> diffs, int ver) {
-                Log.e("V", "v"+ver);
-                if(ver >= version){
+                if (ver >= version) {
                     updateText(currentText, diffs);
                 }
             }
         });
 
         editText.addTextChangedListener(watcher);
+
+
+    }
+
+    public void setPermissions(int permissions) {
+        this.permissions = permissions;
+        this.syncText.setPermissions(permissions);
     }
 
     @Override
@@ -147,18 +134,17 @@ public class PermissionedText extends FrameLayout implements PermissionManager.O
 
     }
 
-    private synchronized void updateText(final String currentText, final LinkedList<SyncTextDiff> diffs){
-        final int prevSel = editText.getSelectionStart();
+    private synchronized void updateText(final String currentText, final LinkedList<SyncTextDiff> diffs) {
         Activity activity = getActivity();
-        if(activity != null){
+        if (activity != null) {
             activity.runOnUiThread(new Runnable() {
                 @Override
                 public void run() {
                     editText.removeTextChangedListener(watcher);
+                    int prevSel = editText.getSelectionStart();
                     editText.setText(diffSpannable(diffs));
-                    int sel = Math.min(prevSel, currentText.length());
+                    int sel = Math.min(prevSel, editText.length());
                     if (sel > -1) {
-                        Log.e("wtf", prevSel + ":"+ sel + " [[ " + currentText.length() + " v" + version);
                         editText.setSelection(sel);
                     }
                     editText.addTextChangedListener(watcher);
@@ -178,7 +164,6 @@ public class PermissionedText extends FrameLayout implements PermissionManager.O
         @Override
         public void onTextChanged(CharSequence s, int start, int before, int count) {
             version = Math.max(version, syncText.update(s.toString()));
-            Log.e("v", "updating v"+version);
         }
 
         @Override
@@ -186,6 +171,7 @@ public class PermissionedText extends FrameLayout implements PermissionManager.O
 
         }
     };
+
 
     @Override
     public void onCancelled(DatabaseError databaseError) {
@@ -206,10 +192,39 @@ public class PermissionedText extends FrameLayout implements PermissionManager.O
         Context context = getContext();
         while (context instanceof ContextWrapper) {
             if (context instanceof Activity) {
-                return (Activity)context;
+                return (Activity) context;
             }
-            context = ((ContextWrapper)context).getBaseContext();
+            context = ((ContextWrapper) context).getBaseContext();
         }
         return null;
+    }
+
+    private void onSelectionChanged(int selStart, int selEnd) {
+
+    }
+
+    private class PermissionedEditText extends EditText {
+
+        public PermissionedEditText(Context context) {
+            super(context);
+        }
+
+        public PermissionedEditText(Context context, AttributeSet attrs) {
+            super(context, attrs);
+        }
+
+        public PermissionedEditText(Context context, AttributeSet attrs, int defStyleAttr) {
+            super(context, attrs, defStyleAttr);
+        }
+
+        public PermissionedEditText(Context context, AttributeSet attrs, int defStyleAttr, int defStyleRes) {
+            super(context, attrs, defStyleAttr, defStyleRes);
+        }
+
+        @Override
+        protected void onSelectionChanged(int selStart, int selEnd) {
+            super.onSelectionChanged(selStart, selEnd);
+            onSelectionChanged(selStart, selEnd);
+        }
     }
 }
