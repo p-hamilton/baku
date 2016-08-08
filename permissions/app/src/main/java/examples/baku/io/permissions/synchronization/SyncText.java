@@ -115,7 +115,7 @@ public class SyncText {
         this.mOnTextChangeListener = onTextChangeListener;
     }
 
-    public void update(String newText) {
+    public int update(String newText) {
         if (mPatchesRef == null) {
             throw new RuntimeException("database connection hasn't been initialized");
         }
@@ -131,7 +131,9 @@ public class SyncText {
                 patch.setSource(mLocalSource);
             }
             mPatchesRef.push().setValue(patch);
+            return ver + 1;
         }
+        return -1;
     }
 
 //    private void processPatch(SyncTextPatch patch) {
@@ -179,7 +181,7 @@ public class SyncText {
             public void onComplete(DatabaseError databaseError, boolean success, DataSnapshot dataSnapshot) {
                 if (success) {
                     if (mOnTextChangeListener != null) {
-                        mOnTextChangeListener.onTextChange(text, diffs);
+                        mOnTextChangeListener.onTextChange(text, diffs, ver);
                     }
                     if (mOutputRef != null) {  //pass successful change to output location
                         mOutputRef.setValue(text);
@@ -211,7 +213,7 @@ public class SyncText {
 
                 if (mOnTextChangeListener != null) {
                     String text = getFinalText();
-                    mOnTextChangeListener.onTextChange(text, diffs);
+                    mOnTextChangeListener.onTextChange(text, diffs, ver);
                 }
             }
 
@@ -265,7 +267,7 @@ public class SyncText {
     }
 
     public interface OnTextChangeListener {
-        void onTextChange(String finalText, LinkedList<SyncTextDiff> diffs);
+        void onTextChange(String finalText, LinkedList<SyncTextDiff> diffs, int ver);
     }
 
     private class PatchConsumer implements Runnable {
@@ -328,12 +330,19 @@ public class SyncText {
         for (DiffMatchPatch.Diff current : diffs) {
             int operation = current.operation.ordinal();
             String value = current.text;
-            Log.e("zz", "Value: " + value);
+            Log.e("zz", "Value: " + value + " op: " + operation);
+
             if (current.operation == DiffMatchPatch.Operation.INSERT) {
                 if (hasWrite(source)) {
                     resultIterator.add(new SyncTextDiff(current.text, SyncTextDiff.EQUAL, source));
                 } else {
                     resultIterator.add(new SyncTextDiff(current.text, operation, source));
+                }
+                resultIterator.previous();
+                Log.e("zz", "ADDING3 " + current.text);
+                if (resultIterator.hasNext()) {
+                    Log.e("zz", "NEXT3");
+                    previousDiff = resultIterator.next();
                 }
             } else {
                 int length = value.length();
@@ -344,36 +353,48 @@ public class SyncText {
                 while (previousDiff.length() < length) {
                     if (current.operation == DiffMatchPatch.Operation.DELETE) {
                         if (hasWrite(source)) {
-                            Log.e("zz", "REMOVING");
+                            Log.e("zz", "REMOVING " + previousDiff.text);
                             resultIterator.remove();
                         } else {
+                            Log.e("zz", "REMOVING3");
                             previousDiff.setOperation(operation);
                             previousDiff.setSource(source);
                         }
                     }
                     length -= previousDiff.length();
-                    Log.e("zz", "NEXT2");
-                    previousDiff = resultIterator.next();
+                    if (resultIterator.hasNext()) {
+                        Log.e("zz", "NEXT2");
+                        previousDiff = resultIterator.next();
+                    } else {
+                        Log.e("zz", "LENGTH " + length);
+                        break;
+                    }
                 }
 
-
-                if (length != previousDiff.length()) {
-                    SyncTextDiff splitDiff = SyncTextDiff.split(previousDiff, previousDiff.length() - length);
+                if (length != 0 && length != previousDiff.length()) {
+                    Log.e("zz", "Splitting " + previousDiff.text + " at " + length);
+                    SyncTextDiff splitDiff = SyncTextDiff.split(previousDiff, length);
+                    Log.e("zz", splitDiff.text + " - " + previousDiff.text);
                     if (current.operation == DiffMatchPatch.Operation.DELETE) {
                         if (!hasWrite(source) && !source.equals(splitDiff.source)) {
                             splitDiff.setSource(source);
                             splitDiff.setOperation(operation);
-                            Log.e("zz", "ADDING");
+                            Log.e("zz", "ADDING " + splitDiff.text);
                             resultIterator.add(splitDiff);
-                            resultIterator.previous();
+                            previousDiff = resultIterator.previous();
                         }
                     } else {   //EQUAL, unchanged
-                        Log.e("zz", "ADDING2");
+                        Log.e("zz", "ADDING2 " + splitDiff.text);
                         resultIterator.add(splitDiff);
-                        resultIterator.previous();
+                        previousDiff = resultIterator.previous();
                     }
-                }else{
+                } else {
+                    if (resultIterator.hasNext()) {
+                        previousDiff = resultIterator.next();
+                        Log.e("zz", "NEXt4 " +previousDiff.text);
+                    }
                     if (current.operation == DiffMatchPatch.Operation.DELETE && hasWrite(source)) {
+                        Log.e("zz", "REMOVING2 " +previousDiff.text);
                         resultIterator.remove();
                     }
                 }
@@ -381,19 +402,22 @@ public class SyncText {
         }
 
         //merge compatible diffs
-//        if (!result.isEmpty()) {
-//            Iterator<SyncTextDiff> iterator = result.iterator();
-//            SyncTextDiff neighbor = iterator.next();
-//            while (iterator.hasNext()) {
-//                SyncTextDiff diff = iterator.next();
-//                if (neighbor.compatible(diff)) {
-//                    neighbor.text += diff.text;
-//                    iterator.remove();
-//                } else {
-//                    neighbor = diff;
-//                }
-//            }
-//        }
+        if (!result.isEmpty()) {
+            Iterator<SyncTextDiff> iterator = result.iterator();
+            SyncTextDiff neighbor = iterator.next();
+            String wtf = neighbor.text;
+            while (iterator.hasNext()) {
+                SyncTextDiff diff = iterator.next();
+                wtf += " - " + diff.text;
+                if (neighbor.compatible(diff)) {
+                    neighbor.text += diff.text;
+                    iterator.remove();
+                } else {
+                    neighbor = diff;
+                }
+            }
+            Log.e("wtf", wtf);
+        }
 
         this.diffs = result;
         updateCurrent();

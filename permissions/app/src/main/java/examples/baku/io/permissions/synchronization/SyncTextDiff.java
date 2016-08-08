@@ -66,8 +66,8 @@ public class SyncTextDiff {
         SyncTextDiff result = new SyncTextDiff();
         result.setSource(diff.source);
         result.setOperation(diff.operation);
-        result.setText(diff.text.substring(0, start));
-        diff.setText(diff.text.substring(start));
+        result.setText(diff.text.substring(start));
+        diff.setText(diff.text.substring(0, start));
         return result;
     }
 

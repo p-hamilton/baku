@@ -73,6 +73,7 @@
         android:layout_below="@id/composeMessageLayout"
         android:layout_height="match_parent">
         <examples.baku.io.permissions.PermissionedText
+            android:id="@+id/permissionTest"
             android:layout_width="match_parent"
             android:layout_height="match_parent"/>
     </LinearLayout>

@@ -46,6 +46,7 @@ import examples.baku.io.permissions.Blessing;
 import examples.baku.io.permissions.PermissionManager;
 import examples.baku.io.permissions.PermissionRequest;
 import examples.baku.io.permissions.PermissionService;
+import examples.baku.io.permissions.PermissionedText;
 import examples.baku.io.permissions.R;
 import examples.baku.io.permissions.discovery.DevicePickerActivity;
 import examples.baku.io.permissions.synchronization.SyncText;
@@ -274,12 +275,15 @@ public class ComposeActivity extends AppCompatActivity implements ServiceConnect
             }
 
             mMessageRef = mPermissionService.getFirebaseDB().getReference(mPath);
-            mSyncedMessageRef = mMessageRef.child("syncedValues");
+            mSyncedMessageRef = mMessageRef.child("_syncedValues");
             mPermissionManager.addPermissionEventListener(mPath, messagePermissionListener);
             wrapTextField(mToLayout, "to");
             wrapTextField(mFromLayout, "from");
             wrapTextField(mSubjectLayout, "subject");
             wrapTextField(mMessageLayout, "message");
+
+            PermissionedText ptext = (PermissionedText)findViewById(R.id.permissionTest);
+            ptext.setSyncText(new SyncText(mDeviceId, mMessageRef.child("help"), null));
 
             mPublicBlessing = mPermissionManager.bless("public")
                     .setPermissions(mPath + "/subject", PermissionManager.FLAG_READ);
@@ -387,23 +391,7 @@ public class ComposeActivity extends AppCompatActivity implements ServiceConnect
         final SyncText syncText = new SyncText(mDeviceId, mSyncedMessageRef.child(key), mMessageRef.child(key));
         syncTexts.put(key, syncText);
 
-        syncText.setOnTextChangeListener(new SyncText.OnTextChangeListener() {
-            @Override
-            public void onTextChange(final String currentText, final LinkedList<SyncTextDiff> diffs) {
-                final int sel = Math.min(edit.getSelectionStart(), currentText.length());
-                runOnUiThread(new Runnable() {
-                    @Override
-                    public void run() {
-                        edit.setText(currentText);
-                        if (sel > -1) {
-                            edit.setSelection(sel);
-                        }
-                    }
-                });
-            }
-        });
-
-        edit.addTextChangedListener(new TextWatcher() {
+        final TextWatcher watcher = new TextWatcher() {
             @Override
             public void beforeTextChanged(CharSequence s, int start, int count, int after) {
 
@@ -418,7 +406,27 @@ public class ComposeActivity extends AppCompatActivity implements ServiceConnect
             public void afterTextChanged(Editable s) {
 
             }
+        };
+
+        syncText.setOnTextChangeListener(new SyncText.OnTextChangeListener() {
+            @Override
+            public void onTextChange(final String currentText, final LinkedList<SyncTextDiff> diffs, int ver) {
+                final int sel = Math.min(edit.getSelectionStart(), currentText.length());
+                runOnUiThread(new Runnable() {
+                    @Override
+                    public void run() {
+                        edit.removeTextChangedListener(watcher);
+                        edit.setText(currentText);
+                        if (sel > -1) {
+                            edit.setSelection(sel);
+                        }
+                        edit.addTextChangedListener(watcher);
+                    }
+                });
+            }
         });
+
+        edit.addTextChangedListener(watcher);
     }
 
     @Override
