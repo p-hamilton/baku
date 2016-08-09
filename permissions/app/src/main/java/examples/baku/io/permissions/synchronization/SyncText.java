@@ -284,7 +284,7 @@ public class SyncText {
 
     //TODO: this method doesn't handle delete operations on diffs with different sources (e.g. deleting another sources suggestion), these operations are currently ignored
     void processPatch(SyncTextPatch patch) {
-         int v = patch.getVer();
+        int v = patch.getVer();
         if (this.ver >= v) {  //ignore patches for previous versions
             return;
         }
@@ -301,10 +301,10 @@ public class SyncText {
         this.ver = v;
         String patched = (String) patchResults[0];
         LinkedList<DiffMatchPatch.Diff> diffs = diffMatchPatch.diffMain(previous, patched);
-        LinkedList<SyncTextDiff> result = new LinkedList<>(this.diffs);
-        ListIterator<SyncTextDiff> resultIterator = result.listIterator();
+        LinkedList<SyncTextDiff> result = new LinkedList<>();
+        ListIterator<SyncTextDiff> previousIterator = new LinkedList<>(this.diffs).listIterator();
         SyncTextDiff previousDiff = null;
-
+        SyncTextDiff last = null;
 
         int length;
 
@@ -312,70 +312,68 @@ public class SyncText {
             int operation = current.operation.ordinal();
             String value = current.text;
 
-//            if (previousDiff == null && resultIterator.hasNext()) {
-//                previousDiff = resultIterator.next();
-//            }
+            if (previousDiff == null && previousIterator.hasNext()) {
+                previousDiff = previousIterator.next();
+            }
 
             switch (operation) {
                 case SyncTextDiff.EQUAL:
                     length = value.length();
-                    while (previousDiff == null || previousDiff.length() <= length) {
-                        previousDiff = resultIterator.next();
+                    while (previousDiff.length() < length) {
+                        result.add(previousDiff);
                         length -= previousDiff.length();
+                        previousDiff = previousIterator.next();
                     }
-                    if (length > 0 && length < previousDiff.length()) {
+                    if (previousDiff.length() == length) {
+                        result.add(previousDiff);
+                        if (previousIterator.hasNext()) {
+                            previousDiff = previousIterator.next();
+                        }
+                    } else if (length < previousDiff.length()) {
                         SyncTextDiff splitDiff = SyncTextDiff.split(previousDiff, length);
-                        resultIterator.add(splitDiff);
-                        previousDiff = resultIterator.previous();
+                        result.add(previousDiff);
+                        previousDiff = splitDiff;
                     }
                     break;
                 case SyncTextDiff.INSERT:
-                    if (previousDiff == null) {
-                        if (hasWrite(patch)) {
-                            resultIterator.add(new SyncTextDiff(current.text, SyncTextDiff.EQUAL, source, patch.getPermissions()));
-                        } else {
-                            resultIterator.add(new SyncTextDiff(current.text, operation, source, patch.getPermissions()));
-                        }
+                    last = result.peekLast();
+                    if (last != null && last.compatible(operation, source) && !hasWrite(patch)) {
+                        last.text += value;
+                    } else if (hasWrite(patch)) {
+                        result.add(new SyncTextDiff(current.text, SyncTextDiff.EQUAL, source, patch.getPermissions()));
                     } else {
-                        if(previousDiff.compatible(operation, source) && !hasWrite(patch)){
-                            previousDiff.text += value;
-                        }else{
-                            SyncTextDiff copy = new SyncTextDiff(previousDiff);
-                            copy.text = current.text;
-                            copy.source = source;
-                            copy.permission = patch.getPermissions();
-                            if (hasWrite(patch)) {
-                                copy.operation = SyncTextDiff.EQUAL;
-                            } else {
-                                copy.operation = operation;
-                            }
-                            resultIterator.add(copy);
-                            previousDiff = resultIterator.previous();
-                        }
+                        result.add(new SyncTextDiff(current.text, operation, source, patch.getPermissions()));
                     }
                     break;
                 case SyncTextDiff.DELETE:
                     length = value.length();
-                    while (previousDiff == null || previousDiff.length() <= length) {
-                        previousDiff = resultIterator.next();
-                        if ((hasWrite(patch) || ((previousDiff.operation == SyncTextDiff.INSERT) && source.equals(previousDiff.source)))) {
-//                            Log.e("zz", "REMOVING2 " + previousDiff.text);
-                            resultIterator.remove();
-                        } else {
+                    while (previousDiff.length() < length) {
+                        if (!hasWrite(patch) && (!source.equals(previousDiff.source) || previousDiff.operation != SyncTextDiff.INSERT)) {
                             previousDiff.setSource(source);
                             previousDiff.setOperation(operation);
+                            result.add(previousDiff);
                         }
                         length -= previousDiff.length();
+                        previousDiff = previousIterator.next();
                     }
-                    if (length > 0 && length < previousDiff.length()) {
-                        if (hasWrite(patch)) {
+                    if (previousDiff.length() == length) {
+                        if (!hasWrite(patch) && (!source.equals(previousDiff.source) || previousDiff.operation != SyncTextDiff.INSERT)) {
+                            previousDiff.setSource(source);
+                            previousDiff.setOperation(operation);
+                            result.add(previousDiff);
+                        }
+                        if (previousIterator.hasNext()) {
+                            previousDiff = previousIterator.next();
+                        }
+                    } else if (length < previousDiff.length()) {
+                        if (!hasWrite(patch) && (!source.equals(previousDiff.source) || previousDiff.operation != SyncTextDiff.INSERT)) {
+                            SyncTextDiff splitDiff = SyncTextDiff.split(previousDiff, length);
+                            previousDiff.setSource(source);
+                            previousDiff.setOperation(operation);
+                            result.add(previousDiff);
+                            previousDiff = splitDiff;
+                        } else {
                             previousDiff.text = previousDiff.text.substring(0, length);
-                        } else if (previousDiff.operation != SyncTextDiff.DELETE) {    //block deletion of "delete" suggestions
-                            SyncTextDiff splitDiff = SyncTextDiff.split(previousDiff, previousDiff.length() - length);
-                            splitDiff.setSource(source);
-                            splitDiff.setOperation(operation);
-                            resultIterator.add(splitDiff);
-                            previousDiff = resultIterator.previous();
                         }
                     }
                     break;
@@ -383,7 +381,7 @@ public class SyncText {
         }
 
         //merge compatible diffs
-        reduceDiffs(result);
+//        reduceDiffs(result);
 
         setDiffs(result);
 
