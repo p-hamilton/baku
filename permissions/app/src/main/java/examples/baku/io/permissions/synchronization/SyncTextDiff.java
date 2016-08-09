@@ -26,6 +26,14 @@ public class SyncTextDiff {
         this.permission = permission;
     }
 
+    public SyncTextDiff(SyncTextDiff other) {
+        this.text = other.text;
+        this.operation = other.operation;
+        this.source = other.source;
+        this.permission = other.permission;
+    }
+
+
     public int getPermission() {
         return permission;
     }

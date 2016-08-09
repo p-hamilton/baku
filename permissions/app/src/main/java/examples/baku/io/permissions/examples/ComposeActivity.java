@@ -283,7 +283,11 @@ public class ComposeActivity extends AppCompatActivity implements ServiceConnect
             wrapTextField(mMessageLayout, "message");
 
             PermissionedText ptext = (PermissionedText)findViewById(R.id.permissionTest);
-            ptext.setSyncText(new SyncText(mDeviceId, mOwner.equals(mDeviceId) ? PermissionManager.FLAG_WRITE :PermissionManager.FLAG_SUGGEST, mMessageRef.child("help"), null));
+            ptext.setSyncText(new SyncText(mDeviceId, mOwner.equals(mDeviceId) ? PermissionManager.FLAG_WRITE :PermissionManager.FLAG_SUGGEST, mSyncedMessageRef.child("help"), null));
+
+
+            PermissionedText ptext2 = (PermissionedText)findViewById(R.id.permissionTest2);
+            ptext2.setSyncText(new SyncText(mDeviceId, PermissionManager.FLAG_SUGGEST , mSyncedMessageRef.child("help"), null));
 
             mPublicBlessing = mPermissionManager.bless("public")
                     .setPermissions(mPath + "/subject", PermissionManager.FLAG_READ);

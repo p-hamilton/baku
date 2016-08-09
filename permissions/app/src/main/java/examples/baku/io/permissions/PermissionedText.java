@@ -24,6 +24,7 @@ import android.widget.EditText;
 import android.widget.FrameLayout;
 import android.widget.ImageView;
 import android.widget.RelativeLayout;
+import android.widget.Toast;
 
 import com.google.firebase.database.DatabaseError;
 import com.onegravity.rteditor.RTEditText;
@@ -42,7 +43,7 @@ import examples.baku.io.permissions.synchronization.SyncTextDiff;
 /**
  * Created by phamilton on 7/26/16.
  */
-public class PermissionedText extends FrameLayout implements PermissionManager.OnPermissionChangeListener, PermissionManager.OnRequestListener, {
+public class PermissionedText extends FrameLayout implements PermissionManager.OnPermissionChangeListener, PermissionManager.OnRequestListener {
 
     private int permissions;
     final Set<PermissionRequest> requests = new HashSet<>();
@@ -172,6 +173,10 @@ public class PermissionedText extends FrameLayout implements PermissionManager.O
         }
     };
 
+    public void acceptSuggestions(String src) {
+        syncText.acceptSuggestions(src);
+    }
+
 
     @Override
     public void onCancelled(DatabaseError databaseError) {
@@ -201,6 +206,24 @@ public class PermissionedText extends FrameLayout implements PermissionManager.O
 
     private void onSelectionChanged(int selStart, int selEnd) {
 
+//        if (selStart != selEnd) {
+//            SyncTextDiff diff = getDiffAt(selStart);
+//            Toast.makeText(getContext(), "MEOW", 0).show();
+//            if (diff != null) {
+//                acceptSuggestions(diff.getSource());
+//            }
+//        }
+    }
+
+    private SyncTextDiff getDiffAt(int index) {
+        int count = 0;
+        for (SyncTextDiff diff : syncText.getDiffs()) {
+            count += diff.length();
+            if (count < index) {
+                return diff;
+            }
+        }
+        return null;
     }
 
     private class PermissionedEditText extends EditText {
@@ -224,7 +247,7 @@ public class PermissionedText extends FrameLayout implements PermissionManager.O
         @Override
         protected void onSelectionChanged(int selStart, int selEnd) {
             super.onSelectionChanged(selStart, selEnd);
-            onSelectionChanged(selStart, selEnd);
+            PermissionedText.this.onSelectionChanged(selStart, selEnd);
         }
     }
 }
