@@ -4,36 +4,26 @@ import android.app.Activity;
 import android.content.Context;
 import android.content.ContextWrapper;
 import android.graphics.Color;
+import android.graphics.PorterDuff;
 import android.support.design.widget.TextInputLayout;
 import android.text.Editable;
-import android.text.Html;
 import android.text.Spannable;
-import android.text.SpannableString;
 import android.text.SpannableStringBuilder;
-import android.text.TextUtils;
 import android.text.TextWatcher;
 import android.text.style.BackgroundColorSpan;
-import android.text.style.ForegroundColorSpan;
 import android.text.style.StrikethroughSpan;
-import android.text.style.StyleSpan;
 import android.util.AttributeSet;
-import android.util.Log;
-import android.view.ContextMenu;
+import android.view.Gravity;
+import android.view.MotionEvent;
 import android.view.View;
-import android.view.ViewGroup;
 import android.view.inputmethod.EditorInfo;
 import android.widget.EditText;
 import android.widget.FrameLayout;
 import android.widget.ImageView;
-import android.widget.RelativeLayout;
-import android.widget.Toast;
 
 import com.google.firebase.database.DatabaseError;
-import com.onegravity.rteditor.RTEditText;
-import com.onegravity.rteditor.api.format.RTHtml;
-import com.onegravity.rteditor.api.format.RTText;
-
-import org.bitbucket.cowwoc.diffmatchpatch.DiffMatchPatch;
+import com.joanzapata.iconify.IconDrawable;
+import com.joanzapata.iconify.fonts.MaterialIcons;
 
 import java.util.HashSet;
 import java.util.LinkedList;
@@ -53,10 +43,13 @@ public class PermissionedText extends FrameLayout implements PermissionManager.O
     private String label;
 
     private SyncText syncText;
-    TextInputLayout textInputLayout;
-    EditText editText;
+    private TextInputLayout textInputLayout;
+    private EditText editText;
+    private FrameLayout overlay;
 
-    private OnSuggestionSelectedListener onSuggestionSelectedListener = null;
+    private ImageView actionButton;
+
+    private PermissionedTextListener permissionedTextListener = null;
 
     public void unlink() {
         if(syncText != null){
@@ -64,8 +57,9 @@ public class PermissionedText extends FrameLayout implements PermissionManager.O
         }
     }
 
-    public interface OnSuggestionSelectedListener {
-        void onSelected(SyncTextDiff diff);
+    public interface PermissionedTextListener {
+        void onSelected(SyncTextDiff diff, PermissionedText text);
+        void onAction(int action, PermissionedText text);
     }
 
     public PermissionedText(Context context) {
@@ -81,7 +75,7 @@ public class PermissionedText extends FrameLayout implements PermissionManager.O
         init(context, attrs, defStyleAttr);
     }
 
-    public void init(Context context, AttributeSet attrs, int defStyleAttr) {
+    public void init(final Context context, AttributeSet attrs, int defStyleAttr) {
         FrameLayout.LayoutParams params = new FrameLayout.LayoutParams(
                 LayoutParams.MATCH_PARENT, FrameLayout.LayoutParams.WRAP_CONTENT);
         textInputLayout = new TextInputLayout(context);
@@ -99,6 +93,46 @@ public class PermissionedText extends FrameLayout implements PermissionManager.O
         }
         textInputLayout.addView(editText, params);
         addView(textInputLayout);
+
+        overlay = new FrameLayout(context);
+        overlay.setLayoutParams(new FrameLayout.LayoutParams(LayoutParams.MATCH_PARENT, FrameLayout.LayoutParams.MATCH_PARENT));
+        overlay.setBackgroundColor(Color.argb(125, 255,0,0));
+        overlay.setOnTouchListener(new OnTouchListener() {
+            @Override
+            public boolean onTouch(View v, MotionEvent event) {
+                return true;
+            }
+        });
+        overlay.setVisibility(GONE);
+        addView(overlay);
+
+        actionButton = new ImageView(context);
+        IconDrawable drawable = new IconDrawable(context, MaterialIcons.md_check);
+        drawable.color(Color.GREEN);
+        actionButton.setImageDrawable(drawable);
+        actionButton.setLayoutParams(new FrameLayout.LayoutParams(100,100, Gravity.RIGHT));
+        actionButton.setOnTouchListener(new OnTouchListener() {
+            @Override
+            public boolean onTouch(View v, MotionEvent event) {
+                switch (event.getAction()) {
+                    case MotionEvent.ACTION_DOWN: {
+                        ImageView view = (ImageView) v;
+                        view.getDrawable().setColorFilter(0x77000000, PorterDuff.Mode.SRC_ATOP);
+                        view.invalidate();
+                        break;
+                    }
+                    case MotionEvent.ACTION_UP:
+                    case MotionEvent.ACTION_CANCEL: {
+                        ImageView view = (ImageView) v;
+                        view.getDrawable().clearColorFilter();
+                        view.invalidate();
+                        break;
+                    }
+                }
+                return true;
+            }
+        });
+        addView(actionButton);
     }
 
     Spannable diffSpannable(LinkedList<SyncTextDiff> diffs) {
@@ -126,8 +160,8 @@ public class PermissionedText extends FrameLayout implements PermissionManager.O
         return result;
     }
 
-    public void setOnSuggestionSelectedListener(OnSuggestionSelectedListener onSuggestionSelectedListener) {
-        this.onSuggestionSelectedListener = onSuggestionSelectedListener;
+    public void setPermissionedTextListener(PermissionedTextListener permissionedTextListener) {
+        this.permissionedTextListener = permissionedTextListener;
     }
 
     public void setSyncText(SyncText sync) {
@@ -233,9 +267,9 @@ public class PermissionedText extends FrameLayout implements PermissionManager.O
         if(selStart >= 0){
             SyncTextDiff diff = getDiffAt(selStart);
             if (diff != null && diff.operation != SyncTextDiff.EQUAL) {
-                if(onSuggestionSelectedListener != null)
+                if(permissionedTextListener != null)
                 {
-                    onSuggestionSelectedListener.onSelected(diff);
+                    permissionedTextListener.onSelected(diff, this);
                 }
             }
         }

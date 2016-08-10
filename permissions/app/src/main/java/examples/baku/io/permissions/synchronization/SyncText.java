@@ -92,6 +92,9 @@ public class SyncText {
 
     public void setPermissions(int mPermissions) {
         this.mPermissions = mPermissions;
+        if((mPermissions & PermissionManager.FLAG_WRITE) == PermissionManager.FLAG_WRITE){
+            acceptSuggestions(mLocalSource);
+        }
     }
 
     public String getFinalText() {

@@ -12,15 +12,11 @@ import android.graphics.Color;
 import android.os.Bundle;
 import android.os.IBinder;
 import android.support.design.widget.FloatingActionButton;
-import android.support.design.widget.TextInputLayout;
 import android.support.v7.app.AppCompatActivity;
 import android.support.v7.widget.Toolbar;
-import android.text.Editable;
-import android.text.TextWatcher;
 import android.view.Menu;
 import android.view.MenuItem;
 import android.view.View;
-import android.widget.EditText;
 import android.widget.Toast;
 
 import com.google.common.collect.HashMultimap;
@@ -35,7 +31,7 @@ import org.json.JSONException;
 import org.json.JSONObject;
 
 import java.util.HashMap;
-import java.util.LinkedList;
+import java.util.Map;
 import java.util.UUID;
 
 import examples.baku.io.permissions.Blessing;
@@ -311,16 +307,22 @@ public class ComposeActivity extends AppCompatActivity implements ServiceConnect
         }
     }
 
-    private PermissionedText.OnSuggestionSelectedListener suggestionSelectedListener = new PermissionedText.OnSuggestionSelectedListener() {
-        @Override
-        public void onSelected(SyncTextDiff diff) {
-            Toast.makeText(getApplicationContext(), diff.text, 0).show();
-        }
-    };
+
 
     void wrapTextField(final PermissionedText edit, final String key) {
         edit.setSyncText(new SyncText(mDeviceId, PermissionManager.FLAG_SUGGEST, mSyncedMessageRef.child(key), mMessageRef.child(key)));
-        edit.setOnSuggestionSelectedListener(suggestionSelectedListener);
+        edit.setPermissionedTextListener(new PermissionedText.PermissionedTextListener() {
+            @Override
+            public void onSelected(SyncTextDiff diff, PermissionedText text) {
+
+            }
+
+            @Override
+            public void onAction(int action, PermissionedText text) {
+                mPublicBlessing.setPermissions(key, PermissionManager.FLAG_WRITE);
+            }
+        });
+
         mPermissionedFields.put(key, edit);
         final String path = "documents/" + mDeviceId + "/emails/messages/" + mId + "/" + key;
 
