@@ -423,10 +423,27 @@ public class SyncText {
                 }
             }
         }
+        this.ver++;
+        setDiffs(result);
     }
 
-    void rejectSuggestions(String source) {
-
+    public void rejectSuggestions(String source) {
+        LinkedList<SyncTextDiff> result = new LinkedList<>(diffs);
+        for (Iterator<SyncTextDiff> iterator = result.iterator(); iterator.hasNext(); ) {
+            SyncTextDiff diff = iterator.next();
+            if (diff.source.equals(source)) {
+                switch (diff.operation) {
+                    case SyncTextDiff.DELETE:
+                        diff.operation = SyncTextDiff.EQUAL;
+                        break;
+                    case SyncTextDiff.INSERT:
+                        iterator.remove();
+                        break;
+                }
+            }
+        }
+        this.ver++;
+        setDiffs(result);
     }
 
 }

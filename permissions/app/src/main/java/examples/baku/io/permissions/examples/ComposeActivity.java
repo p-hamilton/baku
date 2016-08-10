@@ -21,6 +21,7 @@ import android.view.Menu;
 import android.view.MenuItem;
 import android.view.View;
 import android.widget.EditText;
+import android.widget.Toast;
 
 import com.google.common.collect.HashMultimap;
 import com.google.common.collect.Multimap;
@@ -28,12 +29,7 @@ import com.google.firebase.database.DatabaseError;
 import com.google.firebase.database.DatabaseReference;
 import com.joanzapata.iconify.IconDrawable;
 import com.joanzapata.iconify.fonts.MaterialIcons;
-import com.onegravity.rteditor.RTEditText;
 import com.onegravity.rteditor.RTManager;
-import com.onegravity.rteditor.api.RTApi;
-import com.onegravity.rteditor.api.RTMediaFactoryImpl;
-import com.onegravity.rteditor.api.RTProxyImpl;
-import com.onegravity.rteditor.effects.Effects;
 
 import org.json.JSONException;
 import org.json.JSONObject;
@@ -70,18 +66,13 @@ public class ComposeActivity extends AppCompatActivity implements ServiceConnect
     private Blessing mCastBlessing;
     private Blessing mPublicBlessing;
 
-    EditText mToText;
-    EditText mFrom;
-    EditText mSubject;
-    EditText mMessage;
-
-    TextInputLayout mToLayout;
-    TextInputLayout mFromLayout;
-    TextInputLayout mSubjectLayout;
-    TextInputLayout mMessageLayout;
+    PermissionedText mTo;
+    PermissionedText mFrom;
+    PermissionedText mSubject;
+    PermissionedText mMessage;
 
     Multimap<String, PermissionRequest> mRequests = HashMultimap.create();
-    HashMap<String, TextInputLayout> mEditContainers = new HashMap<>();
+    HashMap<String, PermissionedText> mPermissionedFields = new HashMap<>();
     HashMap<String, Integer> mPermissions = new HashMap<>();
     HashMap<String, SyncText> syncTexts = new HashMap<>();
 
@@ -107,51 +98,14 @@ public class ComposeActivity extends AppCompatActivity implements ServiceConnect
             }
         });
 
+        mTo = (PermissionedText) findViewById(R.id.composeTo);
 
-        mToText = (EditText) findViewById(R.id.composeTo);
-        mToLayout = (TextInputLayout) findViewById(R.id.composeToLayout);
+        mFrom = (PermissionedText) findViewById(R.id.composeFrom);
 
-        mFrom = (EditText) findViewById(R.id.composeFrom);
-        mFromLayout = (TextInputLayout) findViewById(R.id.composeFromLayout);
+        mSubject = (PermissionedText) findViewById(R.id.composeSubject);
 
-        mSubject = (EditText) findViewById(R.id.composeSubject);
-        mSubjectLayout = (TextInputLayout) findViewById(R.id.composeSubjectLayout);
+        mMessage = (PermissionedText) findViewById(R.id.composeMessage);
 
-        mMessage = (EditText) findViewById(R.id.composeMessage);
-        mMessageLayout = (TextInputLayout) findViewById(R.id.composeMessageLayout);
-
-        //setup rich text editor
-//        RTApi rtApi = new RTApi(this, new RTProxyImpl(this), new RTMediaFactoryImpl(this, true));
-//        mRTManager = new RTManager(rtApi, savedInstanceState);
-//        final RTEditText rtEditText = (RTEditText) findViewById(R.id.rtEditText);
-//        mRTManager.registerEditor(rtEditText, true);
-//        rtEditText.setRichTextEditing(true, "meow meow");
-//
-//        rtEditText.addTextChangedListener(new TextWatcher() {
-//            @Override
-//            public void beforeTextChanged(CharSequence s, int start, int count, int after) {
-//                rtEditText.applyEffect(Effects.BGCOLOR, Color.YELLOW);
-//            }
-//
-//            @Override
-//            public void onTextChanged(CharSequence s, int start, int before, int count) {
-//
-//            }
-//
-//            @Override
-//            public void afterTextChanged(Editable s) {
-//
-//            }
-//        });
-//        rtEditText.setOnFocusChangeListener(new View.OnFocusChangeListener() {
-//            @Override
-//            public void onFocusChange(View v, boolean hasFocus) {
-//                if(!hasFocus){
-//                    rtEditText.selectAll();
-//                    rtEditText.applyEffect(Effects.BGCOLOR, Color.TRANSPARENT);
-//                }
-//            }
-//        });
         bindService(new Intent(this, PermissionService.class), this, Service.BIND_AUTO_CREATE);
     }
 
@@ -194,7 +148,6 @@ public class ComposeActivity extends AppCompatActivity implements ServiceConnect
         return super.onOptionsItemSelected(item);
     }
 
-
     void sendMessage() {
         //TODO: PermissionManager.request()
         mPermissionManager.request(mPath + "/send", mDeviceId)
@@ -218,13 +171,12 @@ public class ComposeActivity extends AppCompatActivity implements ServiceConnect
                 }
                 mCastBlessing.bless(targetDevice)
                         .setPermissions(mPath, PermissionManager.FLAG_READ)
-                        .setPermissions(mPath + "/message", PermissionManager.FLAG_WRITE)
-                        .setPermissions(mPath + "/subject", PermissionManager.FLAG_WRITE);
+                        .setPermissions(mPath + "/message", PermissionManager.FLAG_SUGGEST)
+                        .setPermissions(mPath + "/subject", PermissionManager.FLAG_SUGGEST);
             }
 
             JSONObject castArgs = new JSONObject();
             try {
-
                 castArgs.put("activity", ComposeActivity.class.getSimpleName());
                 castArgs.put(EXTRA_MESSAGE_PATH, mPath);
                 mPermissionService.getMessenger().to(targetDevice).emit("cast", castArgs.toString());
@@ -277,17 +229,10 @@ public class ComposeActivity extends AppCompatActivity implements ServiceConnect
             mMessageRef = mPermissionService.getFirebaseDB().getReference(mPath);
             mSyncedMessageRef = mPermissionService.getFirebaseDB().getReference("documents/" + mOwner + "/emails/syncedMessages/"+mId);
             mPermissionManager.addPermissionEventListener(mPath, messagePermissionListener);
-            wrapTextField(mToLayout, "to");
-            wrapTextField(mFromLayout, "from");
-            wrapTextField(mSubjectLayout, "subject");
-            wrapTextField(mMessageLayout, "message");
-
-            PermissionedText ptext = (PermissionedText)findViewById(R.id.permissionTest);
-            ptext.setSyncText(new SyncText(mDeviceId, mOwner.equals(mDeviceId) ? PermissionManager.FLAG_WRITE :PermissionManager.FLAG_SUGGEST, mSyncedMessageRef.child("help"), null));
-
-
-            PermissionedText ptext2 = (PermissionedText)findViewById(R.id.permissionTest2);
-            ptext2.setSyncText(new SyncText(mDeviceId, PermissionManager.FLAG_SUGGEST , mSyncedMessageRef.child("help"), null));
+            wrapTextField(mTo, "to");
+            wrapTextField(mFrom, "from");
+            wrapTextField(mSubject, "subject");
+            wrapTextField(mMessage, "message");
 
             mPublicBlessing = mPermissionManager.bless("public")
                     .setPermissions(mPath + "/subject", PermissionManager.FLAG_READ);
@@ -336,39 +281,47 @@ public class ComposeActivity extends AppCompatActivity implements ServiceConnect
         if (current == null)
             current = 0;
 
-        TextInputLayout editContainer = mEditContainers.get(key);
-        final EditText edit = editContainer.getEditText();
+        PermissionedText edit = mPermissionedFields.get(key);
+        edit.setPermissions(current);
+
+        if((current & PermissionManager.FLAG_WRITE) != PermissionManager.FLAG_WRITE &&(current & PermissionManager.FLAG_SUGGEST) != PermissionManager.FLAG_SUGGEST){
+            edit.rejectSuggestions(mDeviceId);
+        }
 
         if ((current & PermissionManager.FLAG_WRITE) == PermissionManager.FLAG_WRITE) {
             edit.setEnabled(true);
-            editContainer.setOnClickListener(null);
             edit.setFocusable(true);
             edit.setBackgroundColor(Color.TRANSPARENT);
-            linkTextField(edit, key);
         } else if ((current & PermissionManager.FLAG_READ) == PermissionManager.FLAG_READ) {
             edit.setEnabled(false);
-            editContainer.setOnClickListener(new View.OnClickListener() {
-                @Override
-                public void onClick(View v) {
-                    mPermissionManager.request(mPath + "/" + key, mDeviceId + mId)
-                            .setPermissions(PermissionManager.FLAG_WRITE)
-                            .udpate();
-                }
-            });
+//            editContainer.setOnClickListener(new View.OnClickListener() {
+//                @Override
+//                public void onClick(View v) {
+//                    mPermissionManager.request(mPath + "/" + key, mDeviceId + mId)
+//                            .setPermissions(PermissionManager.FLAG_WRITE)
+//                            .udpate();
+//                }
+//            });
             edit.setFocusable(true);
             edit.setBackgroundColor(Color.TRANSPARENT);
-            linkTextField(edit, key);
         } else {
-            unlinkTextField(key);
             edit.setEnabled(false);
-            editContainer.setOnClickListener(null);
             edit.setFocusable(false);
             edit.setBackgroundColor(Color.BLACK);
         }
     }
 
-    void wrapTextField(final TextInputLayout editContainer, final String key) {
-        mEditContainers.put(key, editContainer);
+    private PermissionedText.OnSuggestionSelectedListener suggestionSelectedListener = new PermissionedText.OnSuggestionSelectedListener() {
+        @Override
+        public void onSelected(SyncTextDiff diff) {
+            Toast.makeText(getApplicationContext(), diff.text, 0).show();
+        }
+    };
+
+    void wrapTextField(final PermissionedText edit, final String key) {
+        edit.setSyncText(new SyncText(mDeviceId, PermissionManager.FLAG_SUGGEST, mSyncedMessageRef.child(key), mMessageRef.child(key)));
+        edit.setOnSuggestionSelectedListener(suggestionSelectedListener);
+        mPermissionedFields.put(key, edit);
         final String path = "documents/" + mDeviceId + "/emails/messages/" + mId + "/" + key;
 
         mPermissionManager.addPermissionEventListener(mPath + "/" + key, new PermissionManager.OnPermissionChangeListener() {
@@ -385,61 +338,10 @@ public class ComposeActivity extends AppCompatActivity implements ServiceConnect
         });
     }
 
-    void unlinkTextField(String key) {
-        if (syncTexts.containsKey(key)) {
-            syncTexts.get(key).unlink();
+    public void unlink(){
+        for(PermissionedText text : mPermissionedFields.values()){
+            text.unlink();
         }
-    }
-
-    void linkTextField(final EditText edit, final String key) {
-        final SyncText syncText = new SyncText(mDeviceId, PermissionManager.FLAG_SUGGEST, mSyncedMessageRef.child(key), mMessageRef.child(key));
-        syncTexts.put(key, syncText);
-
-        final TextWatcher watcher = new TextWatcher() {
-            @Override
-            public void beforeTextChanged(CharSequence s, int start, int count, int after) {
-
-            }
-
-            @Override
-            public void onTextChanged(CharSequence s, int start, int before, int count) {
-                syncText.update(s.toString());
-            }
-
-            @Override
-            public void afterTextChanged(Editable s) {
-
-            }
-        };
-
-        syncText.setOnTextChangeListener(new SyncText.OnTextChangeListener() {
-            @Override
-            public void onTextChange(final String currentText, final LinkedList<SyncTextDiff> diffs, int ver) {
-                final int sel = Math.min(edit.getSelectionStart(), currentText.length());
-                runOnUiThread(new Runnable() {
-                    @Override
-                    public void run() {
-                        edit.removeTextChangedListener(watcher);
-                        edit.setText(currentText);
-                        if (sel > -1) {
-                            edit.setSelection(sel);
-                        }
-                        edit.addTextChangedListener(watcher);
-                    }
-                });
-            }
-        });
-
-        edit.addTextChangedListener(watcher);
-    }
-
-    @Override
-    protected void onDestroy() {
-        super.onDestroy();
-        unlinkTextField("to");
-        unlinkTextField("form");
-        unlinkTextField("subject");
-        unlinkTextField("message");
         if (mPermissionService != null) {
             if (mPublicBlessing != null) {
                 mPublicBlessing.revokePermissions(mPath);
@@ -449,5 +351,11 @@ public class ComposeActivity extends AppCompatActivity implements ServiceConnect
             mPermissionManager.cancelRequests(mDeviceId + mId);
         }
         unbindService(this);
+    }
+
+    @Override
+    protected void onDestroy() {
+        super.onDestroy();
+        unlink();
     }
 }

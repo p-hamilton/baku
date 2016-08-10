@@ -18,8 +18,10 @@ import android.text.style.StrikethroughSpan;
 import android.text.style.StyleSpan;
 import android.util.AttributeSet;
 import android.util.Log;
+import android.view.ContextMenu;
 import android.view.View;
 import android.view.ViewGroup;
+import android.view.inputmethod.EditorInfo;
 import android.widget.EditText;
 import android.widget.FrameLayout;
 import android.widget.ImageView;
@@ -45,15 +47,22 @@ import examples.baku.io.permissions.synchronization.SyncTextDiff;
  */
 public class PermissionedText extends FrameLayout implements PermissionManager.OnPermissionChangeListener, PermissionManager.OnRequestListener {
 
+    private static final String ANDROID_NS = "http://schemas.android.com/apk/res/android";
     private int permissions;
     final Set<PermissionRequest> requests = new HashSet<>();
     private String label;
 
     private SyncText syncText;
     TextInputLayout textInputLayout;
-    PermissionedEditText editText;
+    EditText editText;
 
     private OnSuggestionSelectedListener onSuggestionSelectedListener = null;
+
+    public void unlink() {
+        if(syncText != null){
+            syncText.unlink();
+        }
+    }
 
     public interface OnSuggestionSelectedListener {
         void onSelected(SyncTextDiff diff);
@@ -69,18 +78,27 @@ public class PermissionedText extends FrameLayout implements PermissionManager.O
 
     public PermissionedText(Context context, AttributeSet attrs, int defStyleAttr) {
         super(context, attrs, defStyleAttr);
-        init(context);
+        init(context, attrs, defStyleAttr);
     }
 
-    public void init(Context context) {
-
-
+    public void init(Context context, AttributeSet attrs, int defStyleAttr) {
         FrameLayout.LayoutParams params = new FrameLayout.LayoutParams(
-                LayoutParams.WRAP_CONTENT, FrameLayout.LayoutParams.WRAP_CONTENT);
+                LayoutParams.MATCH_PARENT, FrameLayout.LayoutParams.WRAP_CONTENT);
+        textInputLayout = new TextInputLayout(context);
+        textInputLayout.setLayoutParams(params);
+        String hint = attrs.getAttributeValue(ANDROID_NS, "hint");
+        if (hint != null) {
+            textInputLayout.setHint(hint);
+        }
         editText = new PermissionedEditText(context);
         editText.setId(View.generateViewId());
         editText.setLayoutParams(params);
-        addView(editText, params);
+        int inputType = attrs.getAttributeIntValue(ANDROID_NS, "inputType", EditorInfo.TYPE_NULL);
+        if (inputType != EditorInfo.TYPE_NULL) {
+            editText.setInputType(inputType);
+        }
+        textInputLayout.addView(editText, params);
+        addView(textInputLayout);
     }
 
     Spannable diffSpannable(LinkedList<SyncTextDiff> diffs) {
@@ -108,6 +126,10 @@ public class PermissionedText extends FrameLayout implements PermissionManager.O
         return result;
     }
 
+    public void setOnSuggestionSelectedListener(OnSuggestionSelectedListener onSuggestionSelectedListener) {
+        this.onSuggestionSelectedListener = onSuggestionSelectedListener;
+    }
+
     public void setSyncText(SyncText sync) {
         this.syncText = sync;
 
@@ -121,13 +143,13 @@ public class PermissionedText extends FrameLayout implements PermissionManager.O
         });
 
         editText.addTextChangedListener(watcher);
-
-
     }
 
     public void setPermissions(int permissions) {
         this.permissions = permissions;
-        this.syncText.setPermissions(permissions);
+        if (syncText != null) {
+            this.syncText.setPermissions(permissions);
+        }
     }
 
     @Override
@@ -177,6 +199,9 @@ public class PermissionedText extends FrameLayout implements PermissionManager.O
         syncText.acceptSuggestions(src);
     }
 
+    public void rejectSuggestions(String src) {
+        syncText.rejectSuggestions(src);
+    }
 
     @Override
     public void onCancelled(DatabaseError databaseError) {
@@ -205,22 +230,25 @@ public class PermissionedText extends FrameLayout implements PermissionManager.O
     }
 
     private void onSelectionChanged(int selStart, int selEnd) {
-
-//        if (selStart != selEnd) {
-//            SyncTextDiff diff = getDiffAt(selStart);
-//            Toast.makeText(getContext(), "MEOW", 0).show();
-//            if (diff != null) {
-//                acceptSuggestions(diff.getSource());
-//            }
-//        }
+        if(selStart >= 0){
+            SyncTextDiff diff = getDiffAt(selStart);
+            if (diff != null && diff.operation != SyncTextDiff.EQUAL) {
+                if(onSuggestionSelectedListener != null)
+                {
+                    onSuggestionSelectedListener.onSelected(diff);
+                }
+            }
+        }
     }
 
     private SyncTextDiff getDiffAt(int index) {
         int count = 0;
-        for (SyncTextDiff diff : syncText.getDiffs()) {
-            count += diff.length();
-            if (count < index) {
-                return diff;
+        if (syncText != null) {
+            for (SyncTextDiff diff : syncText.getDiffs()) {
+                count += diff.length();
+                if (index < count) {
+                    return diff;
+                }
             }
         }
         return null;
