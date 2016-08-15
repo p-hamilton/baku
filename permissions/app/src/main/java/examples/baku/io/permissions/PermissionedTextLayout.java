@@ -3,10 +3,12 @@ package examples.baku.io.permissions;
 import android.app.Activity;
 import android.content.Context;
 import android.content.ContextWrapper;
+import android.content.SharedPreferences;
 import android.graphics.Color;
 import android.graphics.PorterDuff;
 import android.support.design.widget.TextInputLayout;
 import android.text.Editable;
+import android.text.InputType;
 import android.text.Spannable;
 import android.text.SpannableStringBuilder;
 import android.text.TextWatcher;
@@ -50,6 +52,8 @@ public class PermissionedTextLayout extends FrameLayout implements PermissionMan
     private ImageView actionButton;
 
     private PermissionedTextListener permissionedTextListener = null;
+
+    private int inputType = InputType.TYPE_CLASS_TEXT;
 
     public void unlink() {
         if(syncText != null){
@@ -99,7 +103,7 @@ public class PermissionedTextLayout extends FrameLayout implements PermissionMan
 
         overlay = new FrameLayout(context);
         overlay.setLayoutParams(new FrameLayout.LayoutParams(LayoutParams.MATCH_PARENT, FrameLayout.LayoutParams.MATCH_PARENT));
-        overlay.setBackgroundColor(Color.argb(125, 255,0,0));
+        overlay.setBackgroundColor(Color.BLACK);
         overlay.setOnTouchListener(new OnTouchListener() {
             @Override
             public boolean onTouch(View v, MotionEvent event) {
@@ -138,7 +142,12 @@ public class PermissionedTextLayout extends FrameLayout implements PermissionMan
                 return true;
             }
         });
+        actionButton.setVisibility(GONE);
         addView(actionButton);
+    }
+
+    public void setInputType(int inputType) {
+        this.inputType = inputType;
     }
 
     Spannable diffSpannable(LinkedList<SyncTextDiff> diffs) {
@@ -177,7 +186,7 @@ public class PermissionedTextLayout extends FrameLayout implements PermissionMan
             @Override
             public void onTextChange(final String currentText, final LinkedList<SyncTextDiff> diffs, int ver) {
                 if (ver >= version) {
-                    updateText(currentText, diffs);
+                    updateText(diffs);
                 }
             }
         });
@@ -187,28 +196,39 @@ public class PermissionedTextLayout extends FrameLayout implements PermissionMan
 
     @Override
     public void onPermissionChange(int current) {
-        this.permissions = current;
-        if (syncText != null) {
-            this.syncText.setPermissions(permissions);
-
-            if((current & PermissionManager.FLAG_WRITE) != PermissionManager.FLAG_WRITE &&(current & PermissionManager.FLAG_SUGGEST) != PermissionManager.FLAG_SUGGEST){
-                syncText.rejectSuggestions();
-            }
-            if ((current & PermissionManager.FLAG_WRITE) == PermissionManager.FLAG_WRITE) {
-                overlay.setVisibility(GONE);
-                syncText.acceptSuggestions();
-            } else if ((current & PermissionManager.FLAG_READ) == PermissionManager.FLAG_READ) {
-                overlay.setVisibility(GONE);
-            } else {
-                overlay.setVisibility(VISIBLE);
-            }
+        if(current != permissions){
+            this.permissions = current;
+            update();
         }
-
-
-
     }
 
-    private synchronized void updateText(final String currentText, final LinkedList<SyncTextDiff> diffs) {
+    private void update(){
+        if (syncText != null) {
+            this.syncText.setPermissions(permissions);
+            if ((permissions & PermissionManager.FLAG_WRITE) == PermissionManager.FLAG_WRITE) {
+                overlay.setVisibility(GONE);
+                editText.setInputType(inputType);
+                editText.setEnabled(true);
+                syncText.acceptSuggestions();
+            } else if ((permissions & PermissionManager.FLAG_SUGGEST) == PermissionManager.FLAG_SUGGEST) {
+                overlay.setVisibility(GONE);
+                editText.setInputType(inputType);
+                editText.setEnabled(true);
+            }else if ((permissions & PermissionManager.FLAG_READ) == PermissionManager.FLAG_READ) {
+                overlay.setVisibility(GONE);
+                syncText.rejectSuggestions();
+                editText.setInputType(EditorInfo.TYPE_NULL);
+                editText.setEnabled(false);
+            } else {
+                overlay.setVisibility(VISIBLE);
+                syncText.rejectSuggestions();
+                editText.setInputType(EditorInfo.TYPE_NULL);
+                editText.setEnabled(false);
+            }
+        }
+    }
+
+    private synchronized void updateText(final LinkedList<SyncTextDiff> diffs) {
         Activity activity = getActivity();
         if (activity != null) {
             activity.runOnUiThread(new Runnable() {

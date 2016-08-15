@@ -14,10 +14,11 @@ import android.os.IBinder;
 import android.support.design.widget.FloatingActionButton;
 import android.support.v7.app.AppCompatActivity;
 import android.support.v7.widget.Toolbar;
+import android.text.InputType;
 import android.view.Menu;
 import android.view.MenuItem;
 import android.view.View;
-import android.widget.Toast;
+import android.view.inputmethod.EditorInfo;
 
 import com.google.common.collect.HashMultimap;
 import com.google.common.collect.Multimap;
@@ -100,6 +101,7 @@ public class ComposeActivity extends AppCompatActivity implements ServiceConnect
         mSubject = (PermissionedTextLayout) findViewById(R.id.composeSubject);
 
         mMessage = (PermissionedTextLayout) findViewById(R.id.composeMessage);
+        mMessage.setInputType(InputType.TYPE_CLASS_TEXT | InputType.TYPE_TEXT_FLAG_MULTI_LINE);
 
         bindService(new Intent(this, PermissionService.class), this, Service.BIND_AUTO_CREATE);
     }
@@ -144,7 +146,7 @@ public class ComposeActivity extends AppCompatActivity implements ServiceConnect
     }
 
     void sendMessage() {
-        //TODO: PermissionManager.request()
+        //TODO: PermissionManager.requestDialog()
         mPermissionManager.request(mPath + "/send", mDeviceId)
                 .putExtra(PermissionManager.EXTRA_TIMEOUT, "2000")
                 .putExtra(PermissionManager.EXTRA_COLOR, "#F00");
@@ -175,14 +177,12 @@ public class ComposeActivity extends AppCompatActivity implements ServiceConnect
                 castArgs.put("activity", ComposeActivity.class.getSimpleName());
                 castArgs.put(EXTRA_MESSAGE_PATH, mPath);
                 mPermissionService.getMessenger().to(targetDevice).emit("cast", castArgs.toString());
-
                 mPermissionService.updateConstellationDevice(targetDevice);
             } catch (JSONException e) {
                 e.printStackTrace();
             }
         }
     }
-
 
     @Override
     public void onServiceConnected(ComponentName name, IBinder service) {
@@ -270,60 +270,29 @@ public class ComposeActivity extends AppCompatActivity implements ServiceConnect
 
     }
 
-    void updateTextField(final String key) {
-        String path = "documents/" + mDeviceId + "/emails/messages/" + mId + "/" + key;
-        Integer current = mPermissions.get(path);
-        if (current == null)
-            current = 0;
-
-        PermissionedTextLayout edit = mPermissionedFields.get(key);
-        edit.onPermissionChange(current);
-
-        if ((current & PermissionManager.FLAG_WRITE) != PermissionManager.FLAG_WRITE && (current & PermissionManager.FLAG_SUGGEST) != PermissionManager.FLAG_SUGGEST) {
-            edit.rejectSuggestions(mDeviceId);
-        }
-
-        if ((current & PermissionManager.FLAG_WRITE) == PermissionManager.FLAG_WRITE) {
-            edit.setEnabled(true);
-            edit.setFocusable(true);
-            edit.setBackgroundColor(Color.TRANSPARENT);
-        } else if ((current & PermissionManager.FLAG_READ) == PermissionManager.FLAG_READ) {
-            edit.setEnabled(false);
-//            editContainer.setOnClickListener(new View.OnClickListener() {
-//                @Override
-//                public void onClick(View v) {
-//                    mPermissionManager.request(mPath + "/" + key, mDeviceId + mId)
-//                            .setPermissions(PermissionManager.FLAG_WRITE)
-//                            .udpate();
-//                }
-//            });
-            edit.setFocusable(true);
-            edit.setBackgroundColor(Color.TRANSPARENT);
-        } else {
-            edit.setEnabled(false);
-            edit.setFocusable(false);
-            edit.setBackgroundColor(Color.BLACK);
-        }
-    }
-
 
     void initField(final PermissionedTextLayout edit, final String key) {
         edit.setSyncText(new SyncText(mDeviceId, PermissionManager.FLAG_SUGGEST, mSyncedMessageRef.child(key), mMessageRef.child(key)));
         edit.setPermissionedTextListener(new PermissionedTextLayout.PermissionedTextListener() {
             @Override
             public void onSelected(final SyncTextDiff diff, PermissionedTextLayout text) {
-                mPermissionService.request("meow", "Apply changes from " + diff.source, "be vigilant",
-                        new PermissionService.ActionCallback() {
-                            @Override
-                            public void onAction(Intent intent) {
-                                edit.acceptSuggestions(diff.source);
-                            }
-                        }, new PermissionService.ActionCallback() {
-                            @Override
-                            public void onAction(Intent intent) {
-                                edit.rejectSuggestions(diff.source);
-                            }
-                        });
+                int current = mPermissionManager.getPermissions(mPath + "/" + key);
+                if ((current & PermissionManager.FLAG_WRITE) == PermissionManager.FLAG_WRITE) {
+                    mPermissionService.requestDialog(diff.source + "@" + key, "Apply changes from " + diff.source, "be vigilant",
+                            new PermissionService.ActionCallback() {
+                                @Override
+                                public boolean onAction(Intent intent) {
+                                    edit.acceptSuggestions(diff.source);
+                                    return true;
+                                }
+                            }, new PermissionService.ActionCallback() {
+                                @Override
+                                public boolean onAction(Intent intent) {
+                                    edit.rejectSuggestions(diff.source);
+                                    return true;
+                                }
+                            });
+                }
             }
 
             @Override

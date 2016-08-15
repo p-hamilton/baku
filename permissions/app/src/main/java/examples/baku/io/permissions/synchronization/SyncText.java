@@ -92,14 +92,14 @@ public class SyncText {
 
     public void setPermissions(int mPermissions) {
         this.mPermissions = mPermissions;
-        if((mPermissions & PermissionManager.FLAG_WRITE) == PermissionManager.FLAG_WRITE){
+        if ((mPermissions & PermissionManager.FLAG_WRITE) == PermissionManager.FLAG_WRITE) {
             acceptSuggestions(mLocalSource);
         }
     }
 
-    public String getFinalText() {
+    public static String getFinalText(LinkedList<SyncTextDiff> diffs) {
         String result = "";
-        for (SyncTextDiff diff : this.diffs) {
+        for (SyncTextDiff diff : diffs) {
             if (diff.operation == SyncTextDiff.EQUAL) {
                 result += diff.getText();
             }
@@ -134,10 +134,11 @@ public class SyncText {
     }
 
     //TODO: this method currently waits for server confirmation to notify listeners. Ideally, it should notify immediately and revert on failure
-    private void updateCurrent() {
-        final String text = getFinalText();
-        final LinkedList<SyncTextDiff> diffs = new LinkedList<>(this.diffs);
-        final int ver = this.ver;
+    private void updateCurrent(final int ver, final LinkedList<SyncTextDiff> diffs) {
+        final String text = getFinalText(diffs);
+        this.ver = ver;
+        this.diffs = diffs;
+        mSyncRef.child(KEY_CURRENT).removeEventListener(mCurrentValueListener);
         mSyncRef.child(KEY_CURRENT).runTransaction(new Transaction.Handler() {
             @Override
             public Transaction.Result doTransaction(MutableData currentData) {
@@ -161,15 +162,21 @@ public class SyncText {
             @Override
             public void onComplete(DatabaseError databaseError, boolean success, DataSnapshot dataSnapshot) {
                 if (success) {
-                    if (mOnTextChangeListener != null) {
-                        mOnTextChangeListener.onTextChange(text, diffs, ver);
-                    }
-                    if (mOutputRef != null) {  //pass successful change to output location
-                        mOutputRef.setValue(text);
-                    }
+                    notifyListeners(diffs, ver);
                 }
+                mSyncRef.child(KEY_CURRENT).addValueEventListener(mCurrentValueListener);
             }
         });
+    }
+
+    private void notifyListeners(LinkedList<SyncTextDiff> diffs, int ver) {
+        String text = getFinalText(diffs);
+        if (mOnTextChangeListener != null) {
+            mOnTextChangeListener.onTextChange(text, diffs, ver);
+        }
+        if (mOutputRef != null) {  //pass successful change to output location
+            mOutputRef.setValue(text);
+        }
     }
 
     public void link() {
@@ -186,16 +193,14 @@ public class SyncText {
                     }
                     ver = dataSnapshot.child(KEY_VERSION).getValue(Integer.class);
                 } else {  //version 0, empty string
-                    updateCurrent();
+                    updateCurrent(0, new LinkedList<>(diffs));
                 }
+
+                notifyListeners(diffs, ver);
 
 //                mPatchesRef.orderByChild(KEY_VERSION).startAt(ver).addChildEventListener(mPatchListener);
                 mPatchesRef.addChildEventListener(mPatchListener);
-
-                if (mOnTextChangeListener != null) {
-                    String text = getFinalText();
-                    mOnTextChangeListener.onTextChange(text, diffs, ver);
-                }
+                mSyncRef.child(KEY_CURRENT).addValueEventListener(mCurrentValueListener);
             }
 
             @Override
@@ -205,20 +210,38 @@ public class SyncText {
         });
     }
 
+    private ValueEventListener mCurrentValueListener = new ValueEventListener() {
+        @Override
+        public void onDataChange(DataSnapshot dataSnapshot) {
+            if (dataSnapshot.exists()) {
+                int version = dataSnapshot.child(KEY_VERSION).getValue(Integer.class);
+                if (version > ver && dataSnapshot.hasChild(KEY_DIFFS)) {
+                    ver = version;
+                    diffs = new LinkedList<SyncTextDiff>(dataSnapshot.child(KEY_DIFFS).getValue(diffListType));
+                    notifyListeners(diffs, ver);
+                }
+            }
+        }
+
+        @Override
+        public void onCancelled(DatabaseError databaseError) {
+
+        }
+    };
+
     private ChildEventListener mPatchListener = new ChildEventListener() {
         @Override
         public void onChildAdded(DataSnapshot dataSnapshot, String s) {
-            if (dataSnapshot.exists()) {
-                try {
-                    SyncTextPatch patch = dataSnapshot.getValue(SyncTextPatch.class);
-                    if (patch != null) {
-                        mPatchQueue.add(patch);
-                    }
-                } catch (DatabaseException e) {
-                    e.printStackTrace();
+            try {
+                SyncTextPatch patch = dataSnapshot.getValue(SyncTextPatch.class);
+                if (patch != null) {
+                    mPatchQueue.add(patch);
                 }
+            } catch (DatabaseException e) {
+                e.printStackTrace();
             }
 
+            dataSnapshot.getRef().removeValue();
         }
 
         @Override
@@ -285,6 +308,7 @@ public class SyncText {
         return (patch.getPermissions() & PermissionManager.FLAG_WRITE) == PermissionManager.FLAG_WRITE;
     }
 
+    //TODO: bug when duplicate letter patterns in the text. The diff algorithm doesn't take source into account.
     //TODO: this method doesn't handle delete operations on diffs with different sources (e.g. deleting another sources suggestion), these operations are currently ignored
     void processPatch(SyncTextPatch patch) {
         int v = patch.getVer();
@@ -301,7 +325,6 @@ public class SyncText {
             return;
         }
 
-        this.ver = v;
         String patched = (String) patchResults[0];
         LinkedList<DiffMatchPatch.Diff> diffs = diffMatchPatch.diffMain(previous, patched);
         LinkedList<SyncTextDiff> result = new LinkedList<>();
@@ -357,7 +380,9 @@ public class SyncText {
                             result.add(previousDiff);
                         }
                         length -= previousDiff.length();
-                        previousDiff = previousIterator.next();
+                        if(previousIterator.hasNext()){
+                            previousDiff = previousIterator.next();
+                        }
                     }
                     if (previousDiff.length() == length) {
                         if (!hasWrite(patch) && (!source.equals(previousDiff.source) || previousDiff.operation != SyncTextDiff.INSERT)) {
@@ -386,13 +411,8 @@ public class SyncText {
         //merge compatible diffs
         reduceDiffs(result);
 
-        setDiffs(result);
+        updateCurrent(v, result);
 
-    }
-
-    private void setDiffs(LinkedList<SyncTextDiff> diffs) {
-        this.diffs = diffs;
-        updateCurrent();
     }
 
     static void reduceDiffs(LinkedList<SyncTextDiff> diffs) {
@@ -411,7 +431,7 @@ public class SyncText {
         }
     }
 
-    public void acceptSuggestions(){
+    public void acceptSuggestions() {
         acceptSuggestions(mLocalSource);
     }
 
@@ -430,11 +450,10 @@ public class SyncText {
                 }
             }
         }
-        this.ver++;
-        setDiffs(result);
+        updateCurrent(ver + 1, result);
     }
 
-    public void rejectSuggestions(){
+    public void rejectSuggestions() {
         rejectSuggestions(mLocalSource);
     }
 
@@ -453,8 +472,7 @@ public class SyncText {
                 }
             }
         }
-        this.ver++;
-        setDiffs(result);
+        updateCurrent(ver + 1, result);
     }
 
 }

@@ -39,6 +39,7 @@ import java.util.UUID;
 import examples.baku.io.permissions.discovery.DeviceData;
 import examples.baku.io.permissions.discovery.DevicePickerActivity;
 import examples.baku.io.permissions.examples.ComposeActivity;
+import examples.baku.io.permissions.messenger.Message;
 import examples.baku.io.permissions.messenger.Messenger;
 import examples.baku.io.permissions.util.Utils;
 
@@ -106,7 +107,7 @@ public class PermissionService extends Service {
 
 
     public interface ActionCallback {
-        void onAction(Intent intent);
+        boolean onAction(Intent intent);    //return true if action is complete and the notification can be dismissed
     }
 
     public interface DiscoveryListener {
@@ -179,7 +180,7 @@ public class PermissionService extends Service {
 
                 Notification notification = new Notification.Builder(PermissionService.this)
                         .setSmallIcon(keyIcon)
-                        .setContentTitle("Permission request from " + sourceName)
+                        .setContentTitle("Permission requestDialog from " + sourceName)
                         .addAction(new Notification.Action.Builder(grantIcon, "Grant", acceptRequestPendingIntent).build())
 //                        .addAction(new Notification.Action.Builder(R.drawable.ic_close_black_24dp, "Reject", rejectRequestPendingIntent).build())
                         .setDeleteIntent(rejectRequestPendingIntent)
@@ -209,7 +210,7 @@ public class PermissionService extends Service {
         mRunning = true;
     }
 
-    public void request(String requestId, String title, String subtitle, ActionCallback accept, ActionCallback reject){
+    public void requestDialog(String requestId, String title, String subtitle, ActionCallback accept, ActionCallback reject){
         Integer previousNotificationId = mRequestNotifications.get(requestId);
         if(previousNotificationId != null){
             mNotificationManager.cancel(previousNotificationId);
@@ -261,7 +262,7 @@ public class PermissionService extends Service {
             final String focus = device.getId();
             notificationBuilder.addAction(createAction(castIcon, "Cast Message", "castMessage", new ActionCallback() {
                 @Override
-                public void onAction(Intent intent) {
+                public boolean onAction(Intent intent) {
                     try {
                         JSONObject castArgs = new JSONObject();
                         castArgs.put("activity", ComposeActivity.class.getSimpleName());
@@ -270,6 +271,7 @@ public class PermissionService extends Service {
                     } catch (JSONException e) {
                         e.printStackTrace();
                     }
+                    return false;
                 }
             }));
         }
@@ -372,14 +374,15 @@ public class PermissionService extends Service {
 
         mMessenger.on("disassociate", new Messenger.Listener() {
             @Override
-            public void call(String args, Messenger.Ack callback) {
+            public void call(Message msg, Messenger.Ack callback) {
 
             }
         });
 
         mMessenger.on("cast", new Messenger.Listener() {
             @Override
-            public void call(String args, Messenger.Ack callback) {
+            public void call(Message msg, Messenger.Ack callback) {
+                String args = msg.getMessage();
                 if (args != null) {
                     try {
                         JSONObject jsonArgs = new JSONObject(args);
@@ -392,6 +395,9 @@ public class PermissionService extends Service {
                                 startActivity(emailIntent);
                             }
                         }
+
+                        //add cast source to constellation
+                        updateConstellationDevice(msg.getSource());
                     } catch (JSONException e) {
                         e.printStackTrace();
                     }
@@ -424,7 +430,13 @@ public class PermissionService extends Service {
                 if (intent.hasExtra(EXTRA_ACTION_ID)) {
                     String aId = intent.getStringExtra(EXTRA_ACTION_ID);
                     if (mActionListeners.containsKey(aId)) {
-                        mActionListeners.get(aId).onAction(intent);
+                        boolean result = mActionListeners.get(aId).onAction(intent);
+                        if(result){
+                            Integer nId = mRequestNotifications.get(aId);
+                            if(nId != null){
+                                mNotificationManager.cancel(nId);
+                            }
+                        }
                     }
                 }
 
@@ -442,7 +454,7 @@ public class PermissionService extends Service {
                     if (request != null) {
                         mPermissionManager.grantRequest(request);
                     } else {
-                        Toast.makeText(getApplicationContext(), "Expired request", 0).show();
+                        Toast.makeText(getApplicationContext(), "Expired requestDialog", 0).show();
                     }
                 }
                 if (intent.hasExtra(EXTRA_NOTIFICATION_ID)) {

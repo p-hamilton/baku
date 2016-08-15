@@ -56,7 +56,7 @@ public class PermissionManager {
     private final Table<String, String, PermissionRequest.Builder> mActiveRequests = HashBasedTable.create();
 
     private final Multimap<String, OnRequestListener> mRequestListeners = HashMultimap.create(); //<path,, >
-    private final Multimap<String, OnRequestListener> mSubscribedRequests = HashMultimap.create(); //<request id, >
+    private final Multimap<String, OnRequestListener> mSubscribedRequests = HashMultimap.create(); //<requestDialog id, >
 
     private Blessing.PermissionTree mPermissionTree = new Blessing.PermissionTree();
     private final Multimap<String, OnPermissionChangeListener> mPermissionValueEventListeners = HashMultimap.create();
@@ -270,7 +270,7 @@ public class PermissionManager {
             //ignore local requests
             if (mId.equals(request.getSource()))
                 return;
-            //Check if request permissions can be granted by this instance
+            //Check if requestDialog permissions can be granted by this instance
             if ((getPermissions(request.getPath()) & request.getPermissions()) != request.getPermissions()) {
                 return;
             }

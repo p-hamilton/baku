@@ -281,7 +281,7 @@ public class EmailActivity extends AppCompatActivity implements ServiceConnectio
 
             if (!mDeviceId.equals(targetDevice)) {
                 mPermissionManager.bless(targetDevice)
-                        .setPermissions(path, PermissionManager.FLAG_READ)
+                        .setPermissions(path + "/to", PermissionManager.FLAG_READ)
                         .setPermissions(path + "/message", PermissionManager.FLAG_SUGGEST)
                         .setPermissions(path + "/subject", PermissionManager.FLAG_SUGGEST);
             }
