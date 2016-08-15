@@ -55,7 +55,7 @@ public class EmailActivity extends AppCompatActivity implements ServiceConnectio
 
     static void l(String msg) {
         Log.e(TAG, msg);
-    }   //TODO: real logging
+    }
 
     public static final String KEY_DOCUMENTS = "documents";
     public static final String KEY_EMAILS = "emails";
@@ -282,8 +282,8 @@ public class EmailActivity extends AppCompatActivity implements ServiceConnectio
             if (!mDeviceId.equals(targetDevice)) {
                 mPermissionManager.bless(targetDevice)
                         .setPermissions(path, PermissionManager.FLAG_READ)
-                        .setPermissions(path + "/message", PermissionManager.FLAG_WRITE)
-                        .setPermissions(path + "/subject", PermissionManager.FLAG_WRITE);
+                        .setPermissions(path + "/message", PermissionManager.FLAG_SUGGEST)
+                        .setPermissions(path + "/subject", PermissionManager.FLAG_SUGGEST);
             }
             JSONObject castArgs = new JSONObject();
             try {

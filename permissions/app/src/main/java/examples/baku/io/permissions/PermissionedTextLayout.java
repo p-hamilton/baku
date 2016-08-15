@@ -35,7 +35,7 @@ import examples.baku.io.permissions.synchronization.SyncTextDiff;
 /**
  * Created by phamilton on 7/26/16.
  */
-public class PermissionedText extends FrameLayout implements PermissionManager.OnPermissionChangeListener, PermissionManager.OnRequestListener {
+public class PermissionedTextLayout extends FrameLayout implements PermissionManager.OnPermissionChangeListener, PermissionManager.OnRequestListener {
 
     private static final String ANDROID_NS = "http://schemas.android.com/apk/res/android";
     private int permissions;
@@ -44,7 +44,7 @@ public class PermissionedText extends FrameLayout implements PermissionManager.O
 
     private SyncText syncText;
     private TextInputLayout textInputLayout;
-    private EditText editText;
+    private PermissionedEditText editText;
     private FrameLayout overlay;
 
     private ImageView actionButton;
@@ -57,20 +57,22 @@ public class PermissionedText extends FrameLayout implements PermissionManager.O
         }
     }
 
+
+
     public interface PermissionedTextListener {
-        void onSelected(SyncTextDiff diff, PermissionedText text);
-        void onAction(int action, PermissionedText text);
+        void onSelected(SyncTextDiff diff, PermissionedTextLayout text);
+        void onAction(int action, PermissionedTextLayout text);
     }
 
-    public PermissionedText(Context context) {
+    public PermissionedTextLayout(Context context) {
         this(context, null, 0);
     }
 
-    public PermissionedText(Context context, AttributeSet attrs) {
+    public PermissionedTextLayout(Context context, AttributeSet attrs) {
         this(context, attrs, 0);
     }
 
-    public PermissionedText(Context context, AttributeSet attrs, int defStyleAttr) {
+    public PermissionedTextLayout(Context context, AttributeSet attrs, int defStyleAttr) {
         super(context, attrs, defStyleAttr);
         init(context, attrs, defStyleAttr);
     }
@@ -85,6 +87,7 @@ public class PermissionedText extends FrameLayout implements PermissionManager.O
             textInputLayout.setHint(hint);
         }
         editText = new PermissionedEditText(context);
+        editText.setSelectionListener(selectionListener);
         editText.setId(View.generateViewId());
         editText.setLayoutParams(params);
         int inputType = attrs.getAttributeIntValue(ANDROID_NS, "inputType", EditorInfo.TYPE_NULL);
@@ -122,6 +125,9 @@ public class PermissionedText extends FrameLayout implements PermissionManager.O
                         break;
                     }
                     case MotionEvent.ACTION_UP:
+                        if(permissionedTextListener != null){
+                            permissionedTextListener.onAction(0, PermissionedTextLayout.this);
+                        }
                     case MotionEvent.ACTION_CANCEL: {
                         ImageView view = (ImageView) v;
                         view.getDrawable().clearColorFilter();
@@ -179,15 +185,26 @@ public class PermissionedText extends FrameLayout implements PermissionManager.O
         editText.addTextChangedListener(watcher);
     }
 
-    public void setPermissions(int permissions) {
-        this.permissions = permissions;
-        if (syncText != null) {
-            this.syncText.setPermissions(permissions);
-        }
-    }
-
     @Override
     public void onPermissionChange(int current) {
+        this.permissions = current;
+        if (syncText != null) {
+            this.syncText.setPermissions(permissions);
+
+            if((current & PermissionManager.FLAG_WRITE) != PermissionManager.FLAG_WRITE &&(current & PermissionManager.FLAG_SUGGEST) != PermissionManager.FLAG_SUGGEST){
+                syncText.rejectSuggestions();
+            }
+            if ((current & PermissionManager.FLAG_WRITE) == PermissionManager.FLAG_WRITE) {
+                overlay.setVisibility(GONE);
+                syncText.acceptSuggestions();
+            } else if ((current & PermissionManager.FLAG_READ) == PermissionManager.FLAG_READ) {
+                overlay.setVisibility(GONE);
+            } else {
+                overlay.setVisibility(VISIBLE);
+            }
+        }
+
+
 
     }
 
@@ -233,6 +250,8 @@ public class PermissionedText extends FrameLayout implements PermissionManager.O
         syncText.acceptSuggestions(src);
     }
 
+
+
     public void rejectSuggestions(String src) {
         syncText.rejectSuggestions(src);
     }
@@ -263,17 +282,21 @@ public class PermissionedText extends FrameLayout implements PermissionManager.O
         return null;
     }
 
-    private void onSelectionChanged(int selStart, int selEnd) {
-        if(selStart >= 0){
-            SyncTextDiff diff = getDiffAt(selStart);
-            if (diff != null && diff.operation != SyncTextDiff.EQUAL) {
-                if(permissionedTextListener != null)
-                {
-                    permissionedTextListener.onSelected(diff, this);
+    private OnSelectionChangedListener selectionListener = new OnSelectionChangedListener() {
+        @Override
+        public void onSelectionChanged(int selStart, int selEnd, boolean focus) {
+            if(focus && selStart >= 0){
+                SyncTextDiff diff = getDiffAt(selStart);
+                if (diff != null && diff.operation != SyncTextDiff.EQUAL) {
+                    if(permissionedTextListener != null)
+                    {
+                        permissionedTextListener.onSelected(diff, PermissionedTextLayout.this);
+                    }
                 }
             }
         }
-    }
+    };
+
 
     private SyncTextDiff getDiffAt(int index) {
         int count = 0;
@@ -288,7 +311,12 @@ public class PermissionedText extends FrameLayout implements PermissionManager.O
         return null;
     }
 
+    private interface OnSelectionChangedListener {
+        void onSelectionChanged(int selStart, int selEnd, boolean focus);
+    }
+
     private class PermissionedEditText extends EditText {
+        private OnSelectionChangedListener mSelectionListener;
 
         public PermissionedEditText(Context context) {
             super(context);
@@ -302,14 +330,16 @@ public class PermissionedText extends FrameLayout implements PermissionManager.O
             super(context, attrs, defStyleAttr);
         }
 
-        public PermissionedEditText(Context context, AttributeSet attrs, int defStyleAttr, int defStyleRes) {
-            super(context, attrs, defStyleAttr, defStyleRes);
+        public void setSelectionListener(OnSelectionChangedListener mSelectionListener) {
+            this.mSelectionListener = mSelectionListener;
         }
 
         @Override
         protected void onSelectionChanged(int selStart, int selEnd) {
             super.onSelectionChanged(selStart, selEnd);
-            PermissionedText.this.onSelectionChanged(selStart, selEnd);
+            if(mSelectionListener != null){
+                mSelectionListener.onSelectionChanged(selStart, selEnd, hasFocus());
+            }
         }
     }
 }

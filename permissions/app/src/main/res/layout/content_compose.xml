@@ -13,14 +13,14 @@
     tools:showIn="@layout/activity_compose">
 
 
-        <examples.baku.io.permissions.PermissionedText
+        <examples.baku.io.permissions.PermissionedTextLayout
             android:id="@+id/composeTo"
             android:layout_width="match_parent"
             android:layout_height="wrap_content"
             android:inputType="textEmailAddress"
             android:hint="To" />
 
-        <examples.baku.io.permissions.PermissionedText
+        <examples.baku.io.permissions.PermissionedTextLayout
             android:id="@+id/composeFrom"
             android:layout_width="match_parent"
             android:layout_height="wrap_content"
@@ -29,7 +29,7 @@
             android:hint="From" />
 
 
-        <examples.baku.io.permissions.PermissionedText
+        <examples.baku.io.permissions.PermissionedTextLayout
             android:id="@+id/composeSubject"
             android:layout_width="match_parent"
             android:layout_height="wrap_content"
@@ -38,7 +38,7 @@
             android:hint="Subject" />
 
 
-        <examples.baku.io.permissions.PermissionedText
+        <examples.baku.io.permissions.PermissionedTextLayout
             android:id="@+id/composeMessage"
             android:layout_width="match_parent"
             android:layout_height="wrap_content"

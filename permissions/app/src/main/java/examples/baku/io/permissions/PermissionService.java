@@ -34,6 +34,7 @@ import org.json.JSONObject;
 import java.util.HashMap;
 import java.util.HashSet;
 import java.util.Map;
+import java.util.UUID;
 
 import examples.baku.io.permissions.discovery.DeviceData;
 import examples.baku.io.permissions.discovery.DevicePickerActivity;
@@ -187,7 +188,6 @@ public class PermissionService extends Service {
                         .build();
                 mNotificationManager.notify(nId, notification);
                 mRequestNotifications.put(request.getId(), nId);
-
                 return true;
             }
 
@@ -208,6 +208,27 @@ public class PermissionService extends Service {
 
         mRunning = true;
     }
+
+    public void request(String requestId, String title, String subtitle, ActionCallback accept, ActionCallback reject){
+        Integer previousNotificationId = mRequestNotifications.get(requestId);
+        if(previousNotificationId != null){
+            mNotificationManager.cancel(previousNotificationId);
+        }
+        Notification notification = new Notification.Builder(PermissionService.this)
+                .setSmallIcon(keyIcon)
+                .setContentTitle(title)
+                .setSubText(subtitle)
+                .addAction(createAction(grantIcon, "Accept", UUID.randomUUID().toString(), accept))
+                .setDeleteIntent(createNotificationCallback(UUID.randomUUID().toString(), reject))
+                .setVibrate(new long[]{100})
+                .setPriority(Notification.PRIORITY_MAX)
+                .build();
+
+        int nId = mNotificationCounter++;
+        mNotificationManager.notify(nId, notification);
+        mRequestNotifications.put(requestId, nId);
+    }
+
 
     public Messenger getMessenger() {
         return mMessenger;
@@ -238,7 +259,7 @@ public class PermissionService extends Service {
         if (mLocalDevice != null && mLocalDevice.getStatus().containsKey(ComposeActivity.EXTRA_MESSAGE_PATH)) {
             final String localPath = mLocalDevice.getStatus().get(ComposeActivity.EXTRA_MESSAGE_PATH);
             final String focus = device.getId();
-            notificationBuilder.addAction(createActionCallback(castIcon, "Cast Message", "castMessage", new ActionCallback() {
+            notificationBuilder.addAction(createAction(castIcon, "Cast Message", "castMessage", new ActionCallback() {
                 @Override
                 public void onAction(Intent intent) {
                     try {
@@ -272,15 +293,18 @@ public class PermissionService extends Service {
     }
 
 
-    private Notification.Action createActionCallback(Icon icon, String title, String actionId, ActionCallback callback) {
+    private Notification.Action createAction(Icon icon, String title, String actionId, ActionCallback callback) {
+        PendingIntent actionPendingIntent = createNotificationCallback(actionId, callback);
+        return new Notification.Action.Builder(icon, title, actionPendingIntent).build();
+    }
+
+    private PendingIntent createNotificationCallback(String actionId, ActionCallback callback){
         mActionListeners.put(actionId, callback);
         Intent actionIntent = new Intent(this, PermissionService.class);
         actionIntent.putExtra(EXTRA_COMMAND, "actionCallback");
         actionIntent.putExtra(EXTRA_ACTION_ID, actionId);
-        PendingIntent actionPendingIntent = PendingIntent.getService(this, mActionCounter++, actionIntent, PendingIntent.FLAG_CANCEL_CURRENT);
-        return new Notification.Action.Builder(icon, title, actionPendingIntent).build();
+        return PendingIntent.getService(this, mActionCounter++, actionIntent, PendingIntent.FLAG_CANCEL_CURRENT);
     }
-
 
     public PermissionManager getPermissionManager() {
         return mPermissionManager;

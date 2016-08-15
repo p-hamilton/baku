@@ -384,7 +384,7 @@ public class SyncText {
         }
 
         //merge compatible diffs
-//        reduceDiffs(result);
+        reduceDiffs(result);
 
         setDiffs(result);
 
@@ -411,6 +411,10 @@ public class SyncText {
         }
     }
 
+    public void acceptSuggestions(){
+        acceptSuggestions(mLocalSource);
+    }
+
     public void acceptSuggestions(String source) {
         LinkedList<SyncTextDiff> result = new LinkedList<>(diffs);
         for (Iterator<SyncTextDiff> iterator = result.iterator(); iterator.hasNext(); ) {
@@ -428,6 +432,10 @@ public class SyncText {
         }
         this.ver++;
         setDiffs(result);
+    }
+
+    public void rejectSuggestions(){
+        rejectSuggestions(mLocalSource);
     }
 
     public void rejectSuggestions(String source) {

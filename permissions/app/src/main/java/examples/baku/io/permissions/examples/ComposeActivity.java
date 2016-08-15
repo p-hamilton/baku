@@ -31,14 +31,13 @@ import org.json.JSONException;
 import org.json.JSONObject;
 
 import java.util.HashMap;
-import java.util.Map;
 import java.util.UUID;
 
 import examples.baku.io.permissions.Blessing;
 import examples.baku.io.permissions.PermissionManager;
 import examples.baku.io.permissions.PermissionRequest;
 import examples.baku.io.permissions.PermissionService;
-import examples.baku.io.permissions.PermissionedText;
+import examples.baku.io.permissions.PermissionedTextLayout;
 import examples.baku.io.permissions.R;
 import examples.baku.io.permissions.discovery.DevicePickerActivity;
 import examples.baku.io.permissions.synchronization.SyncText;
@@ -62,13 +61,13 @@ public class ComposeActivity extends AppCompatActivity implements ServiceConnect
     private Blessing mCastBlessing;
     private Blessing mPublicBlessing;
 
-    PermissionedText mTo;
-    PermissionedText mFrom;
-    PermissionedText mSubject;
-    PermissionedText mMessage;
+    PermissionedTextLayout mTo;
+    PermissionedTextLayout mFrom;
+    PermissionedTextLayout mSubject;
+    PermissionedTextLayout mMessage;
 
     Multimap<String, PermissionRequest> mRequests = HashMultimap.create();
-    HashMap<String, PermissionedText> mPermissionedFields = new HashMap<>();
+    HashMap<String, PermissionedTextLayout> mPermissionedFields = new HashMap<>();
     HashMap<String, Integer> mPermissions = new HashMap<>();
     HashMap<String, SyncText> syncTexts = new HashMap<>();
 
@@ -94,13 +93,13 @@ public class ComposeActivity extends AppCompatActivity implements ServiceConnect
             }
         });
 
-        mTo = (PermissionedText) findViewById(R.id.composeTo);
+        mTo = (PermissionedTextLayout) findViewById(R.id.composeTo);
 
-        mFrom = (PermissionedText) findViewById(R.id.composeFrom);
+        mFrom = (PermissionedTextLayout) findViewById(R.id.composeFrom);
 
-        mSubject = (PermissionedText) findViewById(R.id.composeSubject);
+        mSubject = (PermissionedTextLayout) findViewById(R.id.composeSubject);
 
-        mMessage = (PermissionedText) findViewById(R.id.composeMessage);
+        mMessage = (PermissionedTextLayout) findViewById(R.id.composeMessage);
 
         bindService(new Intent(this, PermissionService.class), this, Service.BIND_AUTO_CREATE);
     }
@@ -166,7 +165,7 @@ public class ComposeActivity extends AppCompatActivity implements ServiceConnect
                     mCastBlessing = mPermissionManager.getRootBlessing();
                 }
                 mCastBlessing.bless(targetDevice)
-                        .setPermissions(mPath, PermissionManager.FLAG_READ)
+                        .setPermissions(mPath + "/to", PermissionManager.FLAG_READ)
                         .setPermissions(mPath + "/message", PermissionManager.FLAG_SUGGEST)
                         .setPermissions(mPath + "/subject", PermissionManager.FLAG_SUGGEST);
             }
@@ -223,12 +222,12 @@ public class ComposeActivity extends AppCompatActivity implements ServiceConnect
             }
 
             mMessageRef = mPermissionService.getFirebaseDB().getReference(mPath);
-            mSyncedMessageRef = mPermissionService.getFirebaseDB().getReference("documents/" + mOwner + "/emails/syncedMessages/"+mId);
+            mSyncedMessageRef = mPermissionService.getFirebaseDB().getReference("documents/" + mOwner + "/emails/syncedMessages/" + mId);
             mPermissionManager.addPermissionEventListener(mPath, messagePermissionListener);
-            wrapTextField(mTo, "to");
-            wrapTextField(mFrom, "from");
-            wrapTextField(mSubject, "subject");
-            wrapTextField(mMessage, "message");
+            initField(mTo, "to");
+            initField(mFrom, "from");
+            initField(mSubject, "subject");
+            initField(mMessage, "message");
 
             mPublicBlessing = mPermissionManager.bless("public")
                     .setPermissions(mPath + "/subject", PermissionManager.FLAG_READ);
@@ -277,10 +276,10 @@ public class ComposeActivity extends AppCompatActivity implements ServiceConnect
         if (current == null)
             current = 0;
 
-        PermissionedText edit = mPermissionedFields.get(key);
-        edit.setPermissions(current);
+        PermissionedTextLayout edit = mPermissionedFields.get(key);
+        edit.onPermissionChange(current);
 
-        if((current & PermissionManager.FLAG_WRITE) != PermissionManager.FLAG_WRITE &&(current & PermissionManager.FLAG_SUGGEST) != PermissionManager.FLAG_SUGGEST){
+        if ((current & PermissionManager.FLAG_WRITE) != PermissionManager.FLAG_WRITE && (current & PermissionManager.FLAG_SUGGEST) != PermissionManager.FLAG_SUGGEST) {
             edit.rejectSuggestions(mDeviceId);
         }
 
@@ -308,18 +307,27 @@ public class ComposeActivity extends AppCompatActivity implements ServiceConnect
     }
 
 
-
-    void wrapTextField(final PermissionedText edit, final String key) {
+    void initField(final PermissionedTextLayout edit, final String key) {
         edit.setSyncText(new SyncText(mDeviceId, PermissionManager.FLAG_SUGGEST, mSyncedMessageRef.child(key), mMessageRef.child(key)));
-        edit.setPermissionedTextListener(new PermissionedText.PermissionedTextListener() {
+        edit.setPermissionedTextListener(new PermissionedTextLayout.PermissionedTextListener() {
             @Override
-            public void onSelected(SyncTextDiff diff, PermissionedText text) {
-
+            public void onSelected(final SyncTextDiff diff, PermissionedTextLayout text) {
+                mPermissionService.request("meow", "Apply changes from " + diff.source, "be vigilant",
+                        new PermissionService.ActionCallback() {
+                            @Override
+                            public void onAction(Intent intent) {
+                                edit.acceptSuggestions(diff.source);
+                            }
+                        }, new PermissionService.ActionCallback() {
+                            @Override
+                            public void onAction(Intent intent) {
+                                edit.rejectSuggestions(diff.source);
+                            }
+                        });
             }
 
             @Override
-            public void onAction(int action, PermissionedText text) {
-                mPublicBlessing.setPermissions(key, PermissionManager.FLAG_WRITE);
+            public void onAction(int action, PermissionedTextLayout text) {
             }
         });
 
@@ -329,8 +337,7 @@ public class ComposeActivity extends AppCompatActivity implements ServiceConnect
         mPermissionManager.addPermissionEventListener(mPath + "/" + key, new PermissionManager.OnPermissionChangeListener() {
             @Override
             public void onPermissionChange(int current) {
-                mPermissions.put(path, current);
-                updateTextField(key);
+                edit.onPermissionChange(current);
             }
 
             @Override
@@ -340,8 +347,8 @@ public class ComposeActivity extends AppCompatActivity implements ServiceConnect
         });
     }
 
-    public void unlink(){
-        for(PermissionedText text : mPermissionedFields.values()){
+    public void unlink() {
+        for (PermissionedTextLayout text : mPermissionedFields.values()) {
             text.unlink();
         }
         if (mPermissionService != null) {
