@@ -12,25 +12,17 @@ import android.graphics.Color;
 import android.os.Bundle;
 import android.os.IBinder;
 import android.support.design.widget.FloatingActionButton;
-import android.support.design.widget.TextInputLayout;
 import android.support.v7.app.AppCompatActivity;
 import android.support.v7.widget.Toolbar;
-import android.text.Editable;
 import android.text.InputType;
-import android.text.TextWatcher;
-import android.util.Log;
 import android.view.Menu;
 import android.view.MenuItem;
 import android.view.View;
-import android.widget.EditText;
-import android.widget.Toast;
 
 import com.google.common.collect.HashMultimap;
 import com.google.common.collect.Multimap;
-import com.google.firebase.database.DataSnapshot;
 import com.google.firebase.database.DatabaseError;
 import com.google.firebase.database.DatabaseReference;
-import com.google.firebase.database.ValueEventListener;
 import com.joanzapata.iconify.IconDrawable;
 import com.joanzapata.iconify.fonts.MaterialIcons;
 
@@ -38,7 +30,9 @@ import org.json.JSONException;
 import org.json.JSONObject;
 
 import java.util.HashMap;
+import java.util.HashSet;
 import java.util.Map;
+import java.util.Set;
 import java.util.UUID;
 
 import examples.baku.io.permissions.Blessing;
@@ -66,8 +60,9 @@ public class ComposeActivity extends AppCompatActivity implements ServiceConnect
     private DatabaseReference mMessageRef;
     private DatabaseReference mSyncedMessageRef;
 
-    private Blessing mCastBlessing;
+    private Blessing mSourceBlessing;
     private Blessing mPublicBlessing;
+    private final Set<String> targetDevices = new HashSet<>();
 
     PermissionedTextLayout mTo;
     PermissionedTextLayout mFrom;
@@ -169,14 +164,15 @@ public class ComposeActivity extends AppCompatActivity implements ServiceConnect
 
             if (!mOwner.equals(targetDevice)) {
                 //find most appropriate blessing to extend from
-                mCastBlessing = mPermissionManager.getBlessing(mOwner, mDeviceId);
-                if (mCastBlessing == null) {
-                    mCastBlessing = mPermissionManager.getRootBlessing();
+                mSourceBlessing = mPermissionManager.getBlessing(mOwner, mDeviceId);
+                if (mSourceBlessing == null) {
+                    mSourceBlessing = mPermissionManager.getRootBlessing();
                 }
-                mCastBlessing.bless(targetDevice)
+                Blessing deviceBlessing = mSourceBlessing.bless(targetDevice)
                         .setPermissions(mPath + "/to", PermissionManager.FLAG_READ)
                         .setPermissions(mPath + "/subject", PermissionManager.FLAG_SUGGEST)
                         .setPermissions(mPath + "/message", PermissionManager.FLAG_SUGGEST);
+                targetDevices.add(targetDevice);
             }
 
             JSONObject castArgs = new JSONObject();
@@ -185,6 +181,11 @@ public class ComposeActivity extends AppCompatActivity implements ServiceConnect
                 castArgs.put(EXTRA_MESSAGE_PATH, mPath);
                 mPermissionService.getMessenger().to(targetDevice).emit("cast", castArgs.toString());
                 mPermissionService.updateConstellationDevice(targetDevice);
+
+                mFrom.setAction(1, new IconDrawable(this, MaterialIcons.md_cancel)
+                        .color(Color.RED)
+                        .actionBarSize(), "Toggle Permission");
+
             } catch (JSONException e) {
                 e.printStackTrace();
             }
@@ -237,8 +238,8 @@ public class ComposeActivity extends AppCompatActivity implements ServiceConnect
             initField(mSubject, "subject");
             initField(mMessage, "message");
 
-//            mPublicBlessing = mPermissionManager.bless("public")
-//                    .setPermissions(mPath + "/subject", PermissionManager.FLAG_READ);
+            mPublicBlessing = mPermissionManager.bless("public")
+                    .setPermissions(mPath + "/subject", PermissionManager.FLAG_READ);
 
             mPermissionManager.addOnRequestListener("documents/" + mDeviceId + "/emails/messages/" + mId + "/*", new PermissionManager.OnRequestListener() {
                 @Override
@@ -304,6 +305,24 @@ public class ComposeActivity extends AppCompatActivity implements ServiceConnect
 
             @Override
             public void onAction(int action, PermissionedTextLayout text) {
+                if(action == 1){
+                    if(mPublicBlessing != null ){
+                        int current = mPublicBlessing.getPermissions(mPath+"/"+key);
+                        if((current & PermissionManager.FLAG_WRITE) == PermissionManager.FLAG_WRITE){
+                            int wtf = ~PermissionManager.FLAG_WRITE;
+                            wtf &= current;
+                            mPublicBlessing.setPermissions(mPath+"/"+key, current & ~PermissionManager.FLAG_WRITE);
+                            mFrom.setAction(1, new IconDrawable(ComposeActivity.this, MaterialIcons.md_cancel)
+                                    .color(Color.RED)
+                                    .actionBarSize(), "Toggle Permission");
+                        }else{
+                            mPublicBlessing.setPermissions(mPath+"/"+key, current | PermissionManager.FLAG_WRITE);
+                            mFrom.setAction(1, new IconDrawable(ComposeActivity.this, MaterialIcons.md_check)
+                                    .color(Color.GREEN)
+                                    .actionBarSize(), "Toggle Permission");
+                        }
+                    }
+                }
             }
         });
 

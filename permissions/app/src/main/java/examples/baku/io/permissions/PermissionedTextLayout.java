@@ -10,6 +10,8 @@ import android.content.ContextWrapper;
 import android.content.SharedPreferences;
 import android.graphics.Color;
 import android.graphics.PorterDuff;
+import android.graphics.drawable.Drawable;
+import android.graphics.drawable.Icon;
 import android.support.design.widget.TextInputLayout;
 import android.text.Editable;
 import android.text.InputType;
@@ -34,6 +36,8 @@ import com.joanzapata.iconify.fonts.MaterialIcons;
 import java.util.HashSet;
 import java.util.LinkedList;
 import java.util.Set;
+import java.util.SortedMap;
+import java.util.TreeMap;
 
 import examples.baku.io.permissions.synchronization.SyncText;
 import examples.baku.io.permissions.synchronization.SyncTextDiff;
@@ -52,6 +56,9 @@ public class PermissionedTextLayout extends FrameLayout implements PermissionMan
     private TextInputLayout textInputLayout;
     private PermissionedEditText editText;
     private FrameLayout overlay;
+
+    private final SortedMap<Integer, ActionItem> mActions = new TreeMap<>();
+    private ActionItem mPrimaryAction;
 
     private ImageView actionButton;
 
@@ -134,7 +141,11 @@ public class PermissionedTextLayout extends FrameLayout implements PermissionMan
                     }
                     case MotionEvent.ACTION_UP:
                         if (permissionedTextListener != null) {
-                            permissionedTextListener.onAction(0, PermissionedTextLayout.this);
+                            int aId = 0;
+                            if(mPrimaryAction != null){
+                                aId = mPrimaryAction.id;
+                            }
+                            permissionedTextListener.onAction(aId, PermissionedTextLayout.this);
                         }
                     case MotionEvent.ACTION_CANCEL: {
                         ImageView view = (ImageView) v;
@@ -270,6 +281,28 @@ public class PermissionedTextLayout extends FrameLayout implements PermissionMan
         }
     };
 
+    public void clearActions(){
+        mActions.clear();
+        mPrimaryAction = null;
+        updateActions();
+    }
+
+    public void setAction(int id, Drawable icon, String label){
+        mActions.put(id, new ActionItem(id,icon,label));
+        mPrimaryAction = mActions.values().iterator().next();
+        updateActions();
+    }
+
+    public void updateActions(){
+        if(mActions.size() == 1){
+            ActionItem action = mPrimaryAction;
+            actionButton.setVisibility(VISIBLE);
+            actionButton.setImageDrawable(action.icon);
+        }else{
+            actionButton.setVisibility(GONE);
+        }
+    }
+
     public void acceptSuggestions(String src) {
         syncText.acceptSuggestions(src);
     }
@@ -331,6 +364,18 @@ public class PermissionedTextLayout extends FrameLayout implements PermissionMan
             }
         }
         return null;
+    }
+
+    class ActionItem{
+        int id;
+        Drawable icon;
+        String label;
+
+        public ActionItem(int id, Drawable icon, String label) {
+            this.id = id;
+            this.icon = icon;
+            this.label = label;
+        }
     }
 
     private interface OnSelectionChangedListener {

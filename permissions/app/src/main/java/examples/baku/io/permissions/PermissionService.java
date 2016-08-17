@@ -8,8 +8,10 @@ import android.app.Notification;
 import android.app.NotificationManager;
 import android.app.PendingIntent;
 import android.app.Service;
+import android.content.BroadcastReceiver;
 import android.content.Context;
 import android.content.Intent;
+import android.content.IntentFilter;
 import android.content.ServiceConnection;
 import android.graphics.drawable.Icon;
 import android.os.Binder;
@@ -67,6 +69,8 @@ public class PermissionService extends Service {
     public static final String EXTRA_REQUEST_ID = "requestId";
     public static final String EXTRA_NOTIFICATION_ID = "notificationId";
     public static final String EXTRA_ACTION_ID = "notificationId";
+
+    public static final String ACTION_SHARE_EVENT = "examples.baku.io.permissions.ShareEvent";
 
     NotificationManager mNotificationManager;
 
@@ -205,9 +209,12 @@ public class PermissionService extends Service {
             }
         });
 
+        IntentFilter filter = new IntentFilter();
+        filter.addAction(ACTION_SHARE_EVENT);
+        registerReceiver(eventReceiver, filter);
+
         mNotificationManager = (NotificationManager) getSystemService(NOTIFICATION_SERVICE);
         initForegroundNotification();
-
         registerDevice();
         initMessenger();
         initDiscovery();
@@ -220,12 +227,14 @@ public class PermissionService extends Service {
         if (previousNotificationId != null) {
             mNotificationManager.cancel(previousNotificationId);
         }
+        String aId = UUID.randomUUID().toString();
+        String dId = UUID.randomUUID().toString();
         Notification notification = new Notification.Builder(PermissionService.this)
                 .setSmallIcon(keyIcon)
                 .setContentTitle(title)
                 .setSubText(subtitle)
-                .addAction(createAction(grantIcon, "Accept", UUID.randomUUID().toString(), accept))
-                .setDeleteIntent(createNotificationCallback(UUID.randomUUID().toString(), reject))
+                .addAction(createAction(grantIcon, "Accept", aId, accept))
+                .setDeleteIntent(createNotificationCallback(dId, reject))
                 .setVibrate(new long[]{100})
                 .setPriority(Notification.PRIORITY_MAX)
                 .build();
@@ -233,6 +242,8 @@ public class PermissionService extends Service {
         int nId = mNotificationCounter++;
         mNotificationManager.notify(nId, notification);
         mRequestNotifications.put(requestId, nId);
+        mRequestNotifications.put(aId, nId);
+        mRequestNotifications.put(dId, nId);
     }
 
 
@@ -427,6 +438,13 @@ public class PermissionService extends Service {
         }
     }
 
+    private final BroadcastReceiver eventReceiver = new BroadcastReceiver() {
+        @Override
+        public void onReceive(Context context, Intent intent) {
+
+        }
+    };
+
     @Override
     public int onStartCommand(Intent intent, int flags, int startId) {
 
@@ -588,6 +606,7 @@ public class PermissionService extends Service {
         if (mPermissionManager != null) {
             mPermissionManager.onDestroy();
         }
+        unregisterReceiver(eventReceiver);
         super.onDestroy();
     }
 
