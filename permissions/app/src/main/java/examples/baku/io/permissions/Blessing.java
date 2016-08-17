@@ -123,6 +123,10 @@ public class Blessing implements Iterable<Blessing.Permission>, ValueEventListen
         }
     };
 
+    public int getPermissions(String path){
+        return permissionTree.getPermissions(path);
+    }
+
     public boolean isSynched() {
         return snapshot != null;
     }
