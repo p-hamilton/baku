@@ -287,6 +287,11 @@ public class PermissionedTextLayout extends FrameLayout implements PermissionMan
         updateActions();
     }
 
+    public void removeAction(int id){
+        mActions.remove(id);
+        updateActions();
+    }
+
     public void setAction(int id, Drawable icon, String label){
         mActions.put(id, new ActionItem(id,icon,label));
         mPrimaryAction = mActions.values().iterator().next();

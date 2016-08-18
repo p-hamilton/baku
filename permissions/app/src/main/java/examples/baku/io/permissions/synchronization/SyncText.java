@@ -133,6 +133,12 @@ public class SyncText {
         return -1;
     }
 
+    private LinkedList<SyncTextDiff> toDiffs(String text) {
+        LinkedList<SyncTextDiff> diffs = new LinkedList<>();
+        diffs.add(new SyncTextDiff(text, SyncTextDiff.EQUAL, mLocalSource, mPermissions));
+        return diffs;
+    }
+
     //TODO: this method currently waits for server confirmation to notify listeners. Ideally, it should notify immediately and revert on failure
     private void updateCurrent(final int ver, final LinkedList<SyncTextDiff> diffs) {
         final String text = getFinalText(diffs);
@@ -184,38 +190,61 @@ public class SyncText {
         mSyncRef.child(KEY_SUBSCRIBERS).child(mInstanceId).setValue(0);
 
         mPatchesRef = mSyncRef.child(KEY_PATCHES);
-        mSyncRef.child(KEY_CURRENT).addListenerForSingleValueEvent(new ValueEventListener() {
-            @Override
-            public void onDataChange(DataSnapshot dataSnapshot) {
-                if (dataSnapshot.exists()) {
-                    if (dataSnapshot.hasChild(KEY_DIFFS)) {
-                        diffs = new LinkedList<SyncTextDiff>(dataSnapshot.child(KEY_DIFFS).getValue(diffListType));
-                    }
-                    ver = dataSnapshot.child(KEY_VERSION).getValue(Integer.class);
-                } else {  //version 0, empty string
-                    updateCurrent(0, new LinkedList<>(diffs));
-                }
+        if(mOutputRef != null){
+            mOutputRef.addListenerForSingleValueEvent(pullCurrentOutput);
+        }else{
+            mSyncRef.child(KEY_CURRENT).addListenerForSingleValueEvent(mInitValueListener);
+        }
+    }
 
-                notifyListeners(diffs, ver);
+    private ValueEventListener mInitValueListener = new ValueEventListener() {
+        @Override
+        public void onDataChange(DataSnapshot dataSnapshot) {
+            if (dataSnapshot.exists()) {
+                if (dataSnapshot.hasChild(KEY_DIFFS)) {
+                    diffs = new LinkedList<SyncTextDiff>(dataSnapshot.child(KEY_DIFFS).getValue(diffListType));
+                }
+                ver = dataSnapshot.child(KEY_VERSION).getValue(Integer.class);
+            } else {  //version 0, empty string
+                updateCurrent(0, new LinkedList<>(diffs));
+            }
+            notifyListeners(diffs, ver);
 
 //                mPatchesRef.orderByChild(KEY_VERSION).startAt(ver).addChildEventListener(mPatchListener);
-                mPatchesRef.addChildEventListener(mPatchListener);
-                mSyncRef.child(KEY_CURRENT).addValueEventListener(mCurrentValueListener);
-            }
+            mPatchesRef.addChildEventListener(mPatchListener);
+            mSyncRef.child(KEY_CURRENT).addValueEventListener(mCurrentValueListener);
+        }
 
-            @Override
-            public void onCancelled(DatabaseError databaseError) {
+        @Override
+        public void onCancelled(DatabaseError databaseError) {
 
+        }
+    };
+
+    private ValueEventListener pullCurrentOutput = new ValueEventListener() {
+        @Override
+        public void onDataChange(DataSnapshot dataSnapshot) {
+            if (dataSnapshot.exists()) {
+                String atOutput = dataSnapshot.getValue(String.class);
+                if (atOutput != null) {
+                    diffs = toDiffs(atOutput);
+                }
             }
-        });
-    }
+            mSyncRef.child(KEY_CURRENT).addListenerForSingleValueEvent(mInitValueListener);
+        }
+
+        @Override
+        public void onCancelled(DatabaseError databaseError) {
+
+        }
+    };
 
     private ValueEventListener mCurrentValueListener = new ValueEventListener() {
         @Override
         public void onDataChange(DataSnapshot dataSnapshot) {
             if (dataSnapshot.exists()) {
                 int version = dataSnapshot.child(KEY_VERSION).getValue(Integer.class);
-                if (version > ver && dataSnapshot.hasChild(KEY_DIFFS)) {
+                if (dataSnapshot.hasChild(KEY_DIFFS)) {
                     ver = version;
                     diffs = new LinkedList<SyncTextDiff>(dataSnapshot.child(KEY_DIFFS).getValue(diffListType));
                     notifyListeners(diffs, ver);
@@ -380,7 +409,7 @@ public class SyncText {
                             result.add(previousDiff);
                         }
                         length -= previousDiff.length();
-                        if(previousIterator.hasNext()){
+                        if (previousIterator.hasNext()) {
                             previousDiff = previousIterator.next();
                         }
                     }
@@ -437,20 +466,25 @@ public class SyncText {
 
     public void acceptSuggestions(String source) {
         LinkedList<SyncTextDiff> result = new LinkedList<>(diffs);
+        boolean change = false;
         for (Iterator<SyncTextDiff> iterator = result.iterator(); iterator.hasNext(); ) {
             SyncTextDiff diff = iterator.next();
             if (diff.source.equals(source)) {
                 switch (diff.operation) {
                     case SyncTextDiff.DELETE:
                         iterator.remove();
+                        change = true;
                         break;
-                    default:
+                    case SyncTextDiff.INSERT:
+                        change = true;
                         diff.operation = SyncTextDiff.EQUAL;
                         break;
                 }
             }
         }
-        updateCurrent(ver + 1, result);
+        if(change){
+            updateCurrent(ver + 1, result);
+        }
     }
 
     public void rejectSuggestions() {

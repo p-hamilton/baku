@@ -436,6 +436,9 @@ public class PermissionService extends Service {
                 granted.revoke();
             }
         }
+        for (DiscoveryListener listener : mDiscoveryListener) {
+            listener.onDisassociate(deviceId);
+        }
     }
 
     private final BroadcastReceiver eventReceiver = new BroadcastReceiver() {
@@ -497,8 +500,6 @@ public class PermissionService extends Service {
                 String dId = intent.getStringExtra("deviceId");
                 if (dId != null) {
                     removeFromConstellation(dId);
-
-
                 }
 
             } else if ("close".equals(type)) {

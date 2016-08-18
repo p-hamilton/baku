@@ -23,6 +23,7 @@ import com.google.common.collect.HashMultimap;
 import com.google.common.collect.Multimap;
 import com.google.firebase.database.DatabaseError;
 import com.google.firebase.database.DatabaseReference;
+import com.joanzapata.iconify.Icon;
 import com.joanzapata.iconify.IconDrawable;
 import com.joanzapata.iconify.fonts.MaterialIcons;
 
@@ -41,6 +42,7 @@ import examples.baku.io.permissions.PermissionRequest;
 import examples.baku.io.permissions.PermissionService;
 import examples.baku.io.permissions.PermissionedTextLayout;
 import examples.baku.io.permissions.R;
+import examples.baku.io.permissions.discovery.DeviceData;
 import examples.baku.io.permissions.discovery.DevicePickerActivity;
 import examples.baku.io.permissions.synchronization.SyncText;
 import examples.baku.io.permissions.synchronization.SyncTextDiff;
@@ -253,9 +255,19 @@ public class ComposeActivity extends AppCompatActivity implements ServiceConnect
 
                 }
             });
-
             mPermissionService.setStatus(EXTRA_MESSAGE_PATH, mPath);
 
+             mPermissionService.addDiscoveryListener(new PermissionService.DiscoveryListener() {
+                 @Override
+                 public void onChange(Map<String, DeviceData> devices) {
+
+                 }
+
+                 @Override
+                 public void onDisassociate(String deviceId) {
+
+                 }
+             });
         }
     }
 
@@ -322,6 +334,10 @@ public class ComposeActivity extends AppCompatActivity implements ServiceConnect
                                     .actionBarSize(), "Toggle Permission");
                         }
                     }
+                }else if (action == 2){
+                    mPermissionManager.request(mPath + "/to", mDeviceId)
+                            .setPermissions(PermissionManager.FLAG_WRITE)
+                            .udpate();
                 }
             }
         });
@@ -333,6 +349,15 @@ public class ComposeActivity extends AppCompatActivity implements ServiceConnect
             @Override
             public void onPermissionChange(int current) {
                 edit.onPermissionChange(current);
+
+                //TODO:generalize the following request button
+                if("to".equals(key)){
+                    if(current == PermissionManager.FLAG_READ){
+                        edit.setAction(2, new IconDrawable(ComposeActivity.this, MaterialIcons.md_vpn_key), "Request Permission");
+                    }else{
+                        edit.removeAction(2);
+                    }
+                }
             }
 
             @Override
