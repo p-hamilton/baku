@@ -5,6 +5,7 @@
 package examples.baku.io.permissions;
 
 import android.app.Activity;
+import android.content.Intent;
 import android.support.v7.app.AppCompatActivity;
 import android.os.Bundle;
 import android.util.Log;
@@ -16,7 +17,8 @@ public class PermissionTargetActivity extends Activity {
     protected void onCreate(Bundle savedInstanceState) {
         super.onCreate(savedInstanceState);
         Log.e("zzzzzzzzzz", "GOTCHA!!!!!!!!");
-        Toast.makeText(this, "LALA", 0).show();
+        Intent intent = new Intent(PermissionService.ACTION_SHARE_EVENT);
+        sendBroadcast(intent);
         finish();
     }
 }

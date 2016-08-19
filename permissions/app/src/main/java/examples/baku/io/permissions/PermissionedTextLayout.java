@@ -25,6 +25,8 @@ import android.view.Gravity;
 import android.view.MotionEvent;
 import android.view.View;
 import android.view.inputmethod.EditorInfo;
+import android.widget.ArrayAdapter;
+import android.widget.AutoCompleteTextView;
 import android.widget.EditText;
 import android.widget.FrameLayout;
 import android.widget.ImageView;
@@ -33,8 +35,10 @@ import com.google.firebase.database.DatabaseError;
 import com.joanzapata.iconify.IconDrawable;
 import com.joanzapata.iconify.fonts.MaterialIcons;
 
+import java.util.ArrayList;
 import java.util.HashSet;
 import java.util.LinkedList;
+import java.util.List;
 import java.util.Set;
 import java.util.SortedMap;
 import java.util.TreeMap;
@@ -90,6 +94,10 @@ public class PermissionedTextLayout extends FrameLayout implements PermissionMan
     public PermissionedTextLayout(Context context, AttributeSet attrs, int defStyleAttr) {
         super(context, attrs, defStyleAttr);
         init(context, attrs, defStyleAttr);
+    }
+
+    public void setAutoCompleteAdapter(ArrayAdapter<String> adapter){
+        editText.setAdapter(adapter);
     }
 
     public void init(final Context context, AttributeSet attrs, int defStyleAttr) {
@@ -221,20 +229,24 @@ public class PermissionedTextLayout extends FrameLayout implements PermissionMan
         if (syncText != null) {
             this.syncText.setPermissions(permissions);
             if ((permissions & PermissionManager.FLAG_WRITE) == PermissionManager.FLAG_WRITE) {
+                setVisibility(VISIBLE);
                 overlay.setVisibility(GONE);
                 editText.setInputType(inputType);
                 editText.setEnabled(true);
                 syncText.acceptSuggestions();
             } else if ((permissions & PermissionManager.FLAG_SUGGEST) == PermissionManager.FLAG_SUGGEST) {
+                setVisibility(VISIBLE);
                 overlay.setVisibility(GONE);
                 editText.setInputType(inputType);
                 editText.setEnabled(true);
             } else if ((permissions & PermissionManager.FLAG_READ) == PermissionManager.FLAG_READ) {
+                setVisibility(VISIBLE);
                 overlay.setVisibility(GONE);
                 syncText.rejectSuggestions();
                 editText.setInputType(EditorInfo.TYPE_NULL);
                 editText.setEnabled(false);
             } else {
+                setVisibility(GONE);
                 overlay.setVisibility(VISIBLE);
                 syncText.rejectSuggestions();
                 editText.setInputType(EditorInfo.TYPE_NULL);
@@ -357,6 +369,15 @@ public class PermissionedTextLayout extends FrameLayout implements PermissionMan
         }
     };
 
+    public List<SyncTextDiff> getSuggestions(){
+        List<SyncTextDiff> result = new LinkedList<>();
+        for(SyncTextDiff diff : syncText.getDiffs()){
+            if(diff.permission == PermissionManager.FLAG_SUGGEST){
+                result.add(diff);
+            }
+        }
+        return result;
+    }
 
     private SyncTextDiff getDiffAt(int index) {
         int count = 0;
@@ -387,7 +408,7 @@ public class PermissionedTextLayout extends FrameLayout implements PermissionMan
         void onSelectionChanged(int selStart, int selEnd, boolean focus);
     }
 
-    private class PermissionedEditText extends EditText {
+    private class PermissionedEditText extends AutoCompleteTextView {
         private OnSelectionChangedListener mSelectionListener;
 
         public PermissionedEditText(Context context) {

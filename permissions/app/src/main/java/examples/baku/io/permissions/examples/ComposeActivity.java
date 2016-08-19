@@ -4,20 +4,34 @@
 
 package examples.baku.io.permissions.examples;
 
+import android.Manifest;
+import android.app.PendingIntent;
 import android.app.Service;
 import android.content.ComponentName;
+import android.content.ContentResolver;
+import android.content.DialogInterface;
 import android.content.Intent;
 import android.content.ServiceConnection;
+import android.content.pm.PackageManager;
+import android.database.Cursor;
 import android.graphics.Color;
+import android.net.Uri;
 import android.os.Bundle;
+import android.os.Environment;
 import android.os.IBinder;
+import android.provider.ContactsContract;
+import android.support.annotation.NonNull;
 import android.support.design.widget.FloatingActionButton;
+import android.support.v4.app.ActivityCompat;
+import android.support.v4.content.ContextCompat;
+import android.support.v7.app.AlertDialog;
 import android.support.v7.app.AppCompatActivity;
 import android.support.v7.widget.Toolbar;
 import android.text.InputType;
 import android.view.Menu;
 import android.view.MenuItem;
 import android.view.View;
+import android.widget.ArrayAdapter;
 
 import com.google.common.collect.HashMultimap;
 import com.google.common.collect.Multimap;
@@ -30,6 +44,7 @@ import com.joanzapata.iconify.fonts.MaterialIcons;
 import org.json.JSONException;
 import org.json.JSONObject;
 
+import java.util.ArrayList;
 import java.util.HashMap;
 import java.util.HashSet;
 import java.util.Map;
@@ -66,27 +81,31 @@ public class ComposeActivity extends AppCompatActivity implements ServiceConnect
     private Blessing mPublicBlessing;
     private final Set<String> targetDevices = new HashSet<>();
 
-    PermissionedTextLayout mTo;
-    PermissionedTextLayout mFrom;
-    PermissionedTextLayout mSubject;
-    PermissionedTextLayout mMessage;
+    private PermissionedTextLayout mTo;
+    private PermissionedTextLayout mFrom;
+    private PermissionedTextLayout mSubject;
+    private PermissionedTextLayout mMessage;
 
-    Multimap<String, PermissionRequest> mRequests = HashMultimap.create();
-    HashMap<String, PermissionedTextLayout> mPermissionedFields = new HashMap<>();
-    HashMap<String, Integer> mPermissions = new HashMap<>();
-    HashMap<String, SyncText> syncTexts = new HashMap<>();
+    private Multimap<String, PermissionRequest> mRequests = HashMultimap.create();
+    private HashMap<String, PermissionedTextLayout> mPermissionedFields = new HashMap<>();
+    private HashMap<String, Integer> mPermissions = new HashMap<>();
+    private HashMap<String, SyncText> syncTexts = new HashMap<>();
+
+    private ArrayAdapter<String> contactAdapter;
 
 
     @Override
     protected void onCreate(Bundle savedInstanceState) {
         super.onCreate(savedInstanceState);
+
+
         setContentView(R.layout.activity_compose);
         Toolbar toolbar = (Toolbar) findViewById(R.id.toolbar);
         toolbar.setTitle("Compose");
         setSupportActionBar(toolbar);
         getSupportActionBar().setDisplayHomeAsUpEnabled(true);
         getSupportActionBar().setDisplayShowHomeEnabled(true);
-        toolbar.setTitle("Compose Message");
+        toolbar.setTitle("Compose");
 
 
         FloatingActionButton fab = (FloatingActionButton) findViewById(R.id.fab);
@@ -106,6 +125,8 @@ public class ComposeActivity extends AppCompatActivity implements ServiceConnect
         mMessage = (PermissionedTextLayout) findViewById(R.id.composeMessage);
         mMessage.setInputType(InputType.TYPE_CLASS_TEXT | InputType.TYPE_TEXT_FLAG_MULTI_LINE);
 
+        getContactsPermission();
+
         bindService(new Intent(this, PermissionService.class), this, Service.BIND_AUTO_CREATE);
     }
 
@@ -116,6 +137,11 @@ public class ComposeActivity extends AppCompatActivity implements ServiceConnect
         getMenuInflater().inflate(R.menu.menu_compose, menu);
         menu.findItem(R.id.action_cast).setIcon(
                 new IconDrawable(this, MaterialIcons.md_cast)
+                        .color(Color.WHITE)
+                        .actionBarSize());
+
+        menu.findItem(R.id.action_attach).setIcon(
+                new IconDrawable(this, MaterialIcons.md_attach_file)
                         .color(Color.WHITE)
                         .actionBarSize());
         return true;
@@ -131,30 +157,123 @@ public class ComposeActivity extends AppCompatActivity implements ServiceConnect
         //noinspection SimplifiableIfStatement
         if (id == R.id.action_send) {
             sendMessage();
-        } else if (id == R.id.action_cast) {
+        }else if (id == R.id.action_delete) {
+            sendMessage();  //currently send and delete have the same result
+        }  else if (id == R.id.action_cast) {
             if (mPermissionService != null) {
                 Intent requestIntent = new Intent(ComposeActivity.this, DevicePickerActivity.class);
                 requestIntent.putExtra(DevicePickerActivity.EXTRA_REQUEST, DevicePickerActivity.REQUEST_DEVICE_ID);
                 requestIntent.putExtra(DevicePickerActivity.EXTRA_REQUEST_ARGS, mPath);
                 startActivityForResult(requestIntent, DevicePickerActivity.REQUEST_DEVICE_ID);
             }
-
-        } else if (id == R.id.action_settings) {
-
-        } else if (id == android.R.id.home) {
+        } else if (id == R.id.action_attach) {
+            pickAttachment();
+        }else if (id == android.R.id.home) {
             finish();
         }
 
         return super.onOptionsItemSelected(item);
     }
 
+    public void getContactsPermission(){
+        // Here, thisActivity is the current activity
+        if (ContextCompat.checkSelfPermission(this,
+                Manifest.permission.READ_CONTACTS)
+                != PackageManager.PERMISSION_GRANTED) {
+
+            if (ActivityCompat.shouldShowRequestPermissionRationale(this,
+                    Manifest.permission.READ_CONTACTS)) {
+
+            } else {
+                ActivityCompat.requestPermissions(this,
+                        new String[]{Manifest.permission.READ_CONTACTS},
+                        1);
+            }
+        }else{ //already granted
+            onContactsPermissionGranted();
+        }
+    }
+
+    private void onContactsPermissionGranted(){
+        ArrayList<String> emailAddressCollection = new ArrayList<String>();
+        ContentResolver cr = getContentResolver();
+        Cursor emailCur = cr.query(ContactsContract.CommonDataKinds.Email.CONTENT_URI, null, null, null, null);
+        while (emailCur.moveToNext())
+        {
+            String email = emailCur.getString(emailCur.getColumnIndex(ContactsContract.CommonDataKinds.Email.DATA));
+            emailAddressCollection.add(email);
+        }
+        emailCur.close();
+        String[] emailAddresses = new String[emailAddressCollection.size()];
+        emailAddressCollection.toArray(emailAddresses);
+        contactAdapter = new ArrayAdapter<String>(this,
+                android.R.layout.simple_dropdown_item_1line, emailAddresses);
+        mTo.setAutoCompleteAdapter(contactAdapter);
+    }
+
+    @Override
+    public void onRequestPermissionsResult(int requestCode, @NonNull String[] permissions, @NonNull int[] grantResults) {
+        super.onRequestPermissionsResult(requestCode, permissions, grantResults);
+                //TODO: generalize to other permissions. Not just contacts
+                if (grantResults.length > 0
+                        && grantResults[0] == PackageManager.PERMISSION_GRANTED) {
+                    onContactsPermissionGranted();
+                }
+        }
+
+
+    ArrayList<SyncTextDiff> getSuggestions(){
+        ArrayList<SyncTextDiff> result = new ArrayList<>();
+        result.addAll(mTo.getSuggestions());
+        result.addAll(mFrom.getSuggestions());
+        result.addAll(mSubject.getSuggestions());
+        result.addAll(mMessage.getSuggestions());
+        return result;
+    }
 
     void sendMessage() {
         //TODO: PermissionManager.requestDialog()
         mPermissionManager.request(mPath + "/send", mDeviceId)
                 .putExtra(PermissionManager.EXTRA_TIMEOUT, "2000")
                 .putExtra(PermissionManager.EXTRA_COLOR, "#F00");
+
+        if(getSuggestions().size() > 0){
+            AlertDialog.Builder builder = new AlertDialog.Builder(this);
+            builder.setMessage("Confirm suggestions before sending message");
+            builder.setPositiveButton("Confirm", new DialogInterface.OnClickListener() {
+                public void onClick(DialogInterface dialog, int id) {
+                    deleteMessage();
+                }
+            });
+            builder.setNegativeButton("Cancel", new DialogInterface.OnClickListener() {
+                public void onClick(DialogInterface dialog, int id) {
+                    // User cancelled the dialog
+                }
+            });
+
+            AlertDialog dialog = builder.create();
+            dialog.show();
+        }else{
+            deleteMessage();
+        }
+    }
+
+    private void deleteMessage(){
+
+
+        if((mPermissionManager.getPermissions(mPath) & PermissionManager.FLAG_WRITE) == PermissionManager.FLAG_WRITE){
+            mMessageRef.removeValue();
+        }
         finish();
+
+    }
+
+    private void pickAttachment(){
+        Intent intent = new Intent(Intent.ACTION_GET_CONTENT);
+//        Uri uri = Uri.parse(Environment.getExternalStorageDirectory().getPath());
+        intent.setType("file/*");
+//        intent.setDataAndType(uri, "file/*");
+        startActivity(Intent.createChooser(intent, "Choose Attachment"));
     }
 
 
@@ -171,7 +290,7 @@ public class ComposeActivity extends AppCompatActivity implements ServiceConnect
                     mSourceBlessing = mPermissionManager.getRootBlessing();
                 }
                 Blessing deviceBlessing = mSourceBlessing.bless(targetDevice)
-                        .setPermissions(mPath + "/to", PermissionManager.FLAG_READ)
+                        .setPermissions(mPath + "/to", PermissionManager.FLAG_SUGGEST)
                         .setPermissions(mPath + "/subject", PermissionManager.FLAG_SUGGEST)
                         .setPermissions(mPath + "/message", PermissionManager.FLAG_SUGGEST);
                 targetDevices.add(targetDevice);
@@ -298,6 +417,8 @@ public class ComposeActivity extends AppCompatActivity implements ServiceConnect
             public void onSelected(final SyncTextDiff diff, PermissionedTextLayout text) {
                 int current = mPermissionManager.getPermissions(mPath + "/" + key);
                 if ((current & PermissionManager.FLAG_WRITE) == PermissionManager.FLAG_WRITE) {
+                    Intent content = new Intent(ComposeActivity.this, ComposeActivity.class);
+                    content.setFlags(Intent.FLAG_ACTIVITY_SINGLE_TOP);
                     mPermissionService.requestDialog(diff.source + "@" + key, "Apply changes from " + diff.source, "be vigilant",
                             new PermissionService.ActionCallback() {
                                 @Override
@@ -311,7 +432,7 @@ public class ComposeActivity extends AppCompatActivity implements ServiceConnect
                                     edit.rejectSuggestions(diff.source);
                                     return true;
                                 }
-                            });
+                            }, content);
                 }
             }
 
@@ -356,6 +477,12 @@ public class ComposeActivity extends AppCompatActivity implements ServiceConnect
                         edit.setAction(2, new IconDrawable(ComposeActivity.this, MaterialIcons.md_vpn_key), "Request Permission");
                     }else{
                         edit.removeAction(2);
+                    }
+
+                    if((current & PermissionManager.FLAG_WRITE) == PermissionManager.FLAG_WRITE){
+                        edit.setAutoCompleteAdapter(contactAdapter);
+                    }else{
+                        edit.setAutoCompleteAdapter(null);
                     }
                 }
             }

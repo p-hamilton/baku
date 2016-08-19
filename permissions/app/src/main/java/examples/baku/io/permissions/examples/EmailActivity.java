@@ -81,7 +81,7 @@ public class EmailActivity extends AppCompatActivity implements ServiceConnectio
         super.onCreate(savedInstanceState);
         setContentView(R.layout.activity_permission);
         Toolbar toolbar = (Toolbar) findViewById(R.id.toolbar);
-        toolbar.setTitle("Inbox");
+        toolbar.setTitle("Drafts");
         setSupportActionBar(toolbar);
 
         FloatingActionButton fab = (FloatingActionButton) findViewById(R.id.fab);
@@ -337,21 +337,22 @@ public class EmailActivity extends AppCompatActivity implements ServiceConnectio
             }
 
             IconTextView castButton = (IconTextView) holder.mCardView.findViewById(R.id.card_trailing);
-            castButton.setOnClickListener(new View.OnClickListener() {
-                @Override
-                public void onClick(View v) {
-                    //choose device
-                    Intent requestIntent = new Intent(EmailActivity.this, DevicePickerActivity.class);
-                    String path = EmailActivity.KEY_DOCUMENTS
-                            + "/" + mDeviceId
-                            + "/" + EmailActivity.KEY_EMAILS
-                            + "/" + EmailActivity.KEY_MESSAGES
-                            + "/" + item.getId();
-                    requestIntent.putExtra(DevicePickerActivity.EXTRA_REQUEST, DevicePickerActivity.REQUEST_DEVICE_ID);
-                    requestIntent.putExtra(DevicePickerActivity.EXTRA_REQUEST_ARGS, path);
-                    startActivityForResult(requestIntent, DevicePickerActivity.REQUEST_DEVICE_ID);
-                }
-            });
+            castButton.setVisibility(View.GONE);
+//            castButton.setOnClickListener(new View.OnClickListener() {
+//                @Override
+//                public void onClick(View v) {
+//                    //choose device
+//                    Intent requestIntent = new Intent(EmailActivity.this, DevicePickerActivity.class);
+//                    String path = EmailActivity.KEY_DOCUMENTS
+//                            + "/" + mDeviceId
+//                            + "/" + EmailActivity.KEY_EMAILS
+//                            + "/" + EmailActivity.KEY_MESSAGES
+//                            + "/" + item.getId();
+//                    requestIntent.putExtra(DevicePickerActivity.EXTRA_REQUEST, DevicePickerActivity.REQUEST_DEVICE_ID);
+//                    requestIntent.putExtra(DevicePickerActivity.EXTRA_REQUEST_ARGS, path);
+//                    startActivityForResult(requestIntent, DevicePickerActivity.REQUEST_DEVICE_ID);
+//                }
+//            });
 
             holder.mCardView.setOnClickListener(new View.OnClickListener() {
                 @Override

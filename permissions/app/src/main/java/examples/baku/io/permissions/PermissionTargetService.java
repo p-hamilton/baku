@@ -19,21 +19,20 @@ import java.util.List;
 /**
  * Created by phamilton on 8/16/16.
  */
-public class PermissionTargetService extends ChooserTargetService{
+public class PermissionTargetService extends ChooserTargetService {
 
     @Override
     public List<ChooserTarget> onGetChooserTargets(ComponentName targetActivityName, IntentFilter matchedFilter) {
-        Log.e("zzzzzzzzzz", "GOTCHA!!!!!!!!");
         final List<ChooserTarget> targets = new ArrayList<>();
 
         final String title = "Cast";
         final Icon icon = Icon.createWithResource(this, R.mipmap.ic_launcher);
         final float score = 1.0f;
 
-        targets.add(new ChooserTarget("meow",icon, score, targetActivityName, null));
-
         Intent intent = new Intent(PermissionService.ACTION_SHARE_EVENT);
         sendBroadcast(intent);
+
+        targets.add(new ChooserTarget(title, icon, score, targetActivityName, null));
         return targets;
     }
 
