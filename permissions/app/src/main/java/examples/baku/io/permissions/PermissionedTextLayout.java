@@ -25,6 +25,8 @@ import android.view.Gravity;
 import android.view.MotionEvent;
 import android.view.View;
 import android.view.inputmethod.EditorInfo;
+import android.widget.ArrayAdapter;
+import android.widget.AutoCompleteTextView;
 import android.widget.EditText;
 import android.widget.FrameLayout;
 import android.widget.ImageView;
@@ -90,6 +92,10 @@ public class PermissionedTextLayout extends FrameLayout implements PermissionMan
     public PermissionedTextLayout(Context context, AttributeSet attrs, int defStyleAttr) {
         super(context, attrs, defStyleAttr);
         init(context, attrs, defStyleAttr);
+    }
+
+    public void setAutoCompleteAdapter(ArrayAdapter<String> adapter){
+        editText.setAdapter(adapter);
     }
 
     public void init(final Context context, AttributeSet attrs, int defStyleAttr) {
@@ -221,20 +227,24 @@ public class PermissionedTextLayout extends FrameLayout implements PermissionMan
         if (syncText != null) {
             this.syncText.setPermissions(permissions);
             if ((permissions & PermissionManager.FLAG_WRITE) == PermissionManager.FLAG_WRITE) {
+                setVisibility(VISIBLE);
                 overlay.setVisibility(GONE);
                 editText.setInputType(inputType);
                 editText.setEnabled(true);
                 syncText.acceptSuggestions();
             } else if ((permissions & PermissionManager.FLAG_SUGGEST) == PermissionManager.FLAG_SUGGEST) {
+                setVisibility(VISIBLE);
                 overlay.setVisibility(GONE);
                 editText.setInputType(inputType);
                 editText.setEnabled(true);
             } else if ((permissions & PermissionManager.FLAG_READ) == PermissionManager.FLAG_READ) {
+                setVisibility(VISIBLE);
                 overlay.setVisibility(GONE);
                 syncText.rejectSuggestions();
                 editText.setInputType(EditorInfo.TYPE_NULL);
                 editText.setEnabled(false);
             } else {
+                setVisibility(GONE);
                 overlay.setVisibility(VISIBLE);
                 syncText.rejectSuggestions();
                 editText.setInputType(EditorInfo.TYPE_NULL);
@@ -387,7 +397,7 @@ public class PermissionedTextLayout extends FrameLayout implements PermissionMan
         void onSelectionChanged(int selStart, int selEnd, boolean focus);
     }
 
-    private class PermissionedEditText extends EditText {
+    private class PermissionedEditText extends AutoCompleteTextView {
         private OnSelectionChangedListener mSelectionListener;
 
         public PermissionedEditText(Context context) {

@@ -196,6 +196,12 @@ public class PermissionService extends Service {
                         .setVibrate(new long[]{100})
                         .setPriority(Notification.PRIORITY_MAX)
                         .build();
+
+                Integer previousNotificationId = mRequestNotifications.get(request.getId());
+                if(previousNotificationId != null){
+                    mNotificationManager.cancel(previousNotificationId);
+                }
+
                 mNotificationManager.notify(nId, notification);
                 mRequestNotifications.put(request.getId(), nId);
                 return true;
@@ -222,22 +228,27 @@ public class PermissionService extends Service {
         mRunning = true;
     }
 
-    public void requestDialog(String requestId, String title, String subtitle, ActionCallback accept, ActionCallback reject) {
+    public void requestDialog(String requestId, String title, String subtitle, ActionCallback accept, ActionCallback reject, Intent content) {
         Integer previousNotificationId = mRequestNotifications.get(requestId);
         if (previousNotificationId != null) {
             mNotificationManager.cancel(previousNotificationId);
         }
         String aId = UUID.randomUUID().toString();
         String dId = UUID.randomUUID().toString();
-        Notification notification = new Notification.Builder(PermissionService.this)
+        Notification.Builder builder = new Notification.Builder(PermissionService.this)
                 .setSmallIcon(keyIcon)
                 .setContentTitle(title)
                 .setSubText(subtitle)
                 .addAction(createAction(grantIcon, "Accept", aId, accept))
                 .setDeleteIntent(createNotificationCallback(dId, reject))
                 .setVibrate(new long[]{100})
-                .setPriority(Notification.PRIORITY_MAX)
-                .build();
+                .setPriority(Notification.PRIORITY_MAX);
+
+        if(content != null){
+            builder.setContentIntent(PendingIntent.getActivity(this, mActionCounter++, content, PendingIntent.FLAG_CANCEL_CURRENT));
+        }
+
+        Notification notification = builder.build();
 
         int nId = mNotificationCounter++;
         mNotificationManager.notify(nId, notification);
