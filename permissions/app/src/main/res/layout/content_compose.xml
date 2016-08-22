@@ -37,44 +37,44 @@
         android:inputType="textEmailSubject" />
 
 
-    <LinearLayout
+    <RelativeLayout
+        android:id="@+id/composeAttachment"
         android:layout_width="match_parent"
-        android:layout_height="match_parent"
-        android:orientation="vertical">
-        <examples.baku.io.permissions.PermissionedTextLayout
-            android:id="@+id/composeMessage"
+        android:layout_height="45dp"
+        android:background="#eee">
+
+        <ImageView
+            android:id="@+id/composeAttachmentIcon"
+            android:layout_width="wrap_content"
+            android:layout_height="wrap_content"
+            android:layout_centerVertical="true"
+            android:padding="5dp"
+            android:src="@drawable/ic_check_black_24dp" />
+
+        <TextView
+            android:id="@+id/composeAttachmentText"
             android:layout_width="match_parent"
             android:layout_height="wrap_content"
-            android:hint="Message"
-            android:inputType="textMultiLine" />
+            android:text="http://about.com"
+            android:textSize="20dp"
+            android:layout_centerVertical="true"
+            android:layout_toEndOf="@+id/composeAttachmentIcon" />
+        <ImageView
+            android:id="@+id/composeAttachmentCast"
+            android:layout_width="wrap_content"
+            android:layout_height="wrap_content"
+            android:layout_centerVertical="true"
+            android:layout_alignParentRight="true"
+            android:padding="5dp"
+            android:src="@drawable/ic_cast_black_24dp" />
+    </RelativeLayout>
 
-        <LinearLayout
-            android:id="@+id/composeAttachment"
-            android:orientation="horizontal"
-            android:layout_width="match_parent"
-            android:background="#eee"
-            android:layout_height="45dp">
-            <ImageView
-                android:id="@+id/composeAttachmentIcon"
-                android:layout_width="wrap_content"
-                android:layout_height="wrap_content"
-                android:src="@drawable/ic_check_black_24dp"/>
-            <TextView
-                android:id="@+id/composeAttachmentText"
-                android:text="http://about.com"
-                android:textSize="15dp"
-                android:layout_width="match_parent"
-                android:layout_height="wrap_content" />
-            <ImageView
-                android:id="@+id/composeAttachmentCast"
-                android:layout_width="wrap_content"
-                android:layout_height="wrap_content"
-                android:layout_gravity="right"
-                android:src="@drawable/ic_cast_black_24dp"/>
-
-        </LinearLayout>
-
-    </LinearLayout>
+    <examples.baku.io.permissions.PermissionedTextLayout
+        android:id="@+id/composeMessage"
+        android:layout_width="match_parent"
+        android:layout_height="wrap_content"
+        android:hint="Message"
+        android:inputType="textMultiLine" />
 
 
 </LinearLayout>

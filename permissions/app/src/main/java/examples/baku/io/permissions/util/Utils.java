@@ -4,6 +4,7 @@
 
 package examples.baku.io.permissions.util;
 
+import android.content.ContentResolver;
 import android.content.Context;
 import android.content.Intent;
 import android.database.Cursor;
@@ -14,6 +15,7 @@ import android.graphics.drawable.Drawable;
 import android.graphics.drawable.Icon;
 import android.net.Uri;
 import android.os.Build;
+import android.provider.DocumentsContract;
 import android.provider.MediaStore;
 import android.provider.OpenableColumns;
 
@@ -66,11 +68,12 @@ public class Utils {
 
     public static String getRealPathFromURI(Context context, Uri contentUri) {
         String result = null;
+        String[] filePathColumn = {MediaStore.Images.Media.DATA};
         if (contentUri.getScheme().equals("content")) {
-            Cursor cursor = context.getContentResolver().query(contentUri, null, null, null, null);
+            Cursor cursor = context.getContentResolver().query(contentUri, filePathColumn, null, null, null);
             try {
                 if (cursor != null && cursor.moveToFirst()) {
-                    result = cursor.getString(cursor.getColumnIndex(OpenableColumns.DISPLAY_NAME));
+                    result = cursor.getString(cursor.getColumnIndex(filePathColumn[0]));
                 }
             } finally {
                 cursor.close();
@@ -86,14 +89,44 @@ public class Utils {
         return result;
     }
 
-    public static void viewImage(Context context, String path){
+    public static String getFilePathFromURI(Context context, Uri contentUri) {
+        // Will return "image:x*"
+        String wholeID = DocumentsContract.getDocumentId(contentUri);
+
+        // Split at colon, use second item in the array
+        String id = wholeID.split(":")[1];
+
+        String[] column = {MediaStore.Images.Media.DATA};
+
+        // where id is equal to
+        String sel = MediaStore.Images.Media._ID + "=?";
+
+        Cursor cursor = context.getContentResolver().
+                query(MediaStore.Images.Media.EXTERNAL_CONTENT_URI,
+                        column, sel, new String[]{id}, null);
+
+        String filePath = null;
+
+        int columnIndex = cursor.getColumnIndex(column[0]);
+
+        if (cursor.moveToFirst()) {
+            filePath = cursor.getString(columnIndex);
+        }
+
+        cursor.close();
+
+        return filePath;
+    }
+
+
+    public static void viewImage(Context context, String path) {
         Intent intent = new Intent();
         intent.setAction(Intent.ACTION_VIEW);
         intent.setDataAndType(Uri.parse("file://" + "/sdcard/" + path), "image/*");
         context.startActivity(intent);
     }
 
-    public static boolean isEmulator(){
+    public static boolean isEmulator() {
         return "google_sdk".equals(Build.PRODUCT) || "sdk".equals(Build.PRODUCT) || "sdk_x86".equals(Build.PRODUCT) || "vbox86p".equals(Build.PRODUCT);
     }
 }

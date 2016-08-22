@@ -392,7 +392,7 @@ public class PermissionedTextLayout extends FrameLayout implements PermissionMan
     public List<SyncTextDiff> getSuggestions() {
         List<SyncTextDiff> result = new LinkedList<>();
         for (SyncTextDiff diff : syncText.getDiffs()) {
-            if (diff.permission == PermissionManager.FLAG_SUGGEST) {
+            if (diff.operation != SyncTextDiff.EQUAL && diff.permission == PermissionManager.FLAG_SUGGEST) {
                 result.add(diff);
             }
         }
