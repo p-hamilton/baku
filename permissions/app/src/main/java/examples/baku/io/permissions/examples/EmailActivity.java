@@ -62,6 +62,7 @@ public class EmailActivity extends AppCompatActivity implements ServiceConnectio
 
     private static final String TAG = PermissionService.class.getSimpleName();
     private DrawerLayout mDrawerLayout;
+    private ItemTouchHelper mItemTouchHelper;
 
     static void l(String msg) {
         Log.e(TAG, msg);
@@ -115,10 +116,8 @@ public class EmailActivity extends AppCompatActivity implements ServiceConnectio
             fab.setOnClickListener(new View.OnClickListener() {
                 @Override
                 public void onClick(View view) {
-                    Intent intent = new Intent(EmailActivity.this, ComposeActivity.class);
-                    String msgId = addNewMessage("Drafts").getId();
-                    intent.putExtra(ComposeActivity.EXTRA_MESSAGE_ID, msgId);
-                    startActivity(intent);
+                    ComposeActivity.launchAndCreateMessage(EmailActivity.this, mMessagesRef, "", "myself@email.com", "", "", null, "Drafts");
+
                 }
             });
         }
@@ -148,18 +147,22 @@ public class EmailActivity extends AppCompatActivity implements ServiceConnectio
         mInboxRecyclerView.setLayoutManager(mLayoutManager);
         mInboxRecyclerView.setAdapter(mInboxAdapter);
 
-        setGroup(mGroup);
-
         //add swipe behavior
-//        ItemTouchHelper itemTouchHelper = new ItemTouchHelper(simpleItemTouchCallback);
+        mItemTouchHelper = new ItemTouchHelper(simpleItemTouchCallback);
 //        itemTouchHelper.attachToRecyclerView(mInboxRecyclerView);
 
+        setGroup(mGroup);
     }
 
     public void setGroup(String group) {
         mGroup = group;
         mToolbar.setTitle(group);
         mInboxAdapter.setGroup(group);
+        if("Sent".equals(group)){
+            mItemTouchHelper.attachToRecyclerView(mInboxRecyclerView);
+        }else{
+            mItemTouchHelper.attachToRecyclerView(null);
+        }
     }
 
 
@@ -405,13 +408,17 @@ public class EmailActivity extends AppCompatActivity implements ServiceConnectio
 
             final MessageData item = getItem(position);
 
-            String title = item.getFrom();
-            if (title != null) {
-                TextView titleView = (TextView) holder.mCardView.findViewById(R.id.card_title);
-                titleView.setText(item.getFrom());
-                TextView subtitleView = (TextView) holder.mCardView.findViewById(R.id.card_subtitle);
-                subtitleView.setText(item.getSubject());
+            String title = "";
+            if("Inbox".equals(mGroup)){
+                title = item.getFrom();
+            }else{
+                title = item.getTo();
             }
+            String subtitle = item.getSubject();
+            TextView titleView = (TextView) holder.mCardView.findViewById(R.id.card_title);
+            titleView.setText(title);
+            TextView subtitleView = (TextView) holder.mCardView.findViewById(R.id.card_subtitle);
+            subtitleView.setText(subtitle);
 
             IconTextView castButton = (IconTextView) holder.mCardView.findViewById(R.id.card_trailing);
             castButton.setVisibility(View.GONE);
