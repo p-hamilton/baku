@@ -18,6 +18,7 @@ import android.text.InputType;
 import android.text.Spannable;
 import android.text.SpannableStringBuilder;
 import android.text.TextWatcher;
+import android.text.method.KeyListener;
 import android.text.style.BackgroundColorSpan;
 import android.text.style.StrikethroughSpan;
 import android.util.AttributeSet;
@@ -71,6 +72,8 @@ public class PermissionedTextLayout extends FrameLayout implements PermissionMan
 
     private int inputType = InputType.TYPE_CLASS_TEXT;
 
+    private boolean editable = false;
+
     public void unlink() {
         if (syncText != null) {
             syncText.unlink();
@@ -118,6 +121,8 @@ public class PermissionedTextLayout extends FrameLayout implements PermissionMan
         if (inputType != EditorInfo.TYPE_NULL) {
             editText.setInputType(inputType);
         }
+
+
         textInputLayout.addView(editText, params);
         addView(textInputLayout);
 
@@ -254,6 +259,20 @@ public class PermissionedTextLayout extends FrameLayout implements PermissionMan
                 editText.setEnabled(false);
             }
         }
+        if(!editable){
+            editText.disable();
+        }else{
+            editText.enable();
+        }
+    }
+
+    public void setEditable(boolean editable) {
+        this.editable = editable;
+        update();
+    }
+
+    public String getText(){
+        return editText.getText().toString();
     }
 
     private synchronized void updateText(final LinkedList<SyncTextDiff> diffs) {
@@ -411,21 +430,38 @@ public class PermissionedTextLayout extends FrameLayout implements PermissionMan
 
     private class PermissionedEditText extends AutoCompleteTextView {
         private OnSelectionChangedListener mSelectionListener;
+        private KeyListener keyListener;
 
         public PermissionedEditText(Context context) {
             super(context);
+            init();
         }
 
         public PermissionedEditText(Context context, AttributeSet attrs) {
             super(context, attrs);
+            init();
         }
 
         public PermissionedEditText(Context context, AttributeSet attrs, int defStyleAttr) {
             super(context, attrs, defStyleAttr);
+            init();
         }
+
+        private void init(){
+            keyListener = getKeyListener();
+        }
+
 
         public void setSelectionListener(OnSelectionChangedListener mSelectionListener) {
             this.mSelectionListener = mSelectionListener;
+        }
+
+        public void enable(){
+            setKeyListener(keyListener);
+        }
+
+        public void disable(){
+            setKeyListener(null);
         }
 
         @Override

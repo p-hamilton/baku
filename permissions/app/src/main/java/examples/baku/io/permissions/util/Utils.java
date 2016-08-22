@@ -4,12 +4,18 @@
 
 package examples.baku.io.permissions.util;
 
+import android.content.Context;
+import android.content.Intent;
+import android.database.Cursor;
 import android.graphics.Bitmap;
 import android.graphics.Canvas;
 import android.graphics.drawable.BitmapDrawable;
 import android.graphics.drawable.Drawable;
 import android.graphics.drawable.Icon;
+import android.net.Uri;
 import android.os.Build;
+import android.provider.MediaStore;
+import android.provider.OpenableColumns;
 
 import com.joanzapata.iconify.IconDrawable;
 
@@ -56,6 +62,35 @@ public class Utils {
         }
 
         return null;
+    }
+
+    public static String getRealPathFromURI(Context context, Uri contentUri) {
+        String result = null;
+        if (contentUri.getScheme().equals("content")) {
+            Cursor cursor = context.getContentResolver().query(contentUri, null, null, null, null);
+            try {
+                if (cursor != null && cursor.moveToFirst()) {
+                    result = cursor.getString(cursor.getColumnIndex(OpenableColumns.DISPLAY_NAME));
+                }
+            } finally {
+                cursor.close();
+            }
+        }
+        if (result == null) {
+            result = contentUri.getPath();
+            int cut = result.lastIndexOf('/');
+            if (cut != -1) {
+                result = result.substring(cut + 1);
+            }
+        }
+        return result;
+    }
+
+    public static void viewImage(Context context, String path){
+        Intent intent = new Intent();
+        intent.setAction(Intent.ACTION_VIEW);
+        intent.setDataAndType(Uri.parse("file://" + "/sdcard/" + path), "image/*");
+        context.startActivity(intent);
     }
 
     public static boolean isEmulator(){

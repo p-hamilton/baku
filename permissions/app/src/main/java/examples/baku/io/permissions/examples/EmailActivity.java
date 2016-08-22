@@ -11,6 +11,7 @@ import android.graphics.Color;
 import android.os.Bundle;
 import android.os.IBinder;
 import android.support.design.widget.FloatingActionButton;
+import android.support.v4.widget.DrawerLayout;
 import android.support.v7.app.AppCompatActivity;
 import android.support.v7.widget.CardView;
 import android.support.v7.widget.LinearLayoutManager;
@@ -23,6 +24,9 @@ import android.view.View;
 import android.view.Menu;
 import android.view.MenuItem;
 import android.view.ViewGroup;
+import android.widget.AdapterView;
+import android.widget.ArrayAdapter;
+import android.widget.ListView;
 import android.widget.TextView;
 
 import com.google.common.collect.Iterables;
@@ -33,6 +37,9 @@ import com.google.firebase.database.DatabaseException;
 import com.google.firebase.database.DatabaseReference;
 import com.google.firebase.database.FirebaseDatabase;
 import com.google.firebase.database.ValueEventListener;
+import com.joanzapata.iconify.IconDrawable;
+import com.joanzapata.iconify.Iconify;
+import com.joanzapata.iconify.fonts.MaterialIcons;
 import com.joanzapata.iconify.widget.IconTextView;
 
 import org.json.JSONException;
@@ -40,6 +47,8 @@ import org.json.JSONObject;
 
 import java.util.ArrayList;
 import java.util.LinkedHashMap;
+import java.util.Map;
+import java.util.UUID;
 
 import examples.baku.io.permissions.Blessing;
 import examples.baku.io.permissions.PermissionManager;
@@ -52,6 +61,7 @@ public class EmailActivity extends AppCompatActivity implements ServiceConnectio
 
 
     private static final String TAG = PermissionService.class.getSimpleName();
+    private DrawerLayout mDrawerLayout;
 
     static void l(String msg) {
         Log.e(TAG, msg);
@@ -67,6 +77,8 @@ public class EmailActivity extends AppCompatActivity implements ServiceConnectio
     private FirebaseDatabase mFirebaseDB;
     private DatabaseReference mMessagesRef;
 
+    private Toolbar mToolbar;
+
     private RecyclerView mInboxRecyclerView;
     private MessagesAdapter mInboxAdapter;
     private LinearLayoutManager mLayoutManager;
@@ -75,23 +87,38 @@ public class EmailActivity extends AppCompatActivity implements ServiceConnectio
 
     private ArrayList<String> mMessageOrder = new ArrayList<>();
 
+    private ListView mDrawerList;
+    private String[] mGroupList = new String[]{"Inbox", "Sent", "Drafts"};
+    private String mGroup = "Inbox";
 
     @Override
     protected void onCreate(Bundle savedInstanceState) {
         super.onCreate(savedInstanceState);
         setContentView(R.layout.activity_permission);
-        Toolbar toolbar = (Toolbar) findViewById(R.id.toolbar);
-        toolbar.setTitle("Drafts");
-        setSupportActionBar(toolbar);
+        mToolbar = (Toolbar) findViewById(R.id.toolbar);
+        mToolbar.setTitle(mGroup);
+        setSupportActionBar(mToolbar);
+        mToolbar.setNavigationIcon(
+                new IconDrawable(this, MaterialIcons.md_menu)
+                        .color(Color.WHITE)
+                        .actionBarSize());
+        mToolbar.setNavigationOnClickListener(new View.OnClickListener() {
+            @Override
+            public void onClick(View v) {
+                mDrawerLayout.openDrawer(mDrawerList);
+                mDrawerLayout.openDrawer(mDrawerList);
+            }
+        });
 
         FloatingActionButton fab = (FloatingActionButton) findViewById(R.id.fab);
         if (fab != null) {
             fab.setOnClickListener(new View.OnClickListener() {
                 @Override
                 public void onClick(View view) {
-                    startActivity(new Intent(EmailActivity.this, ComposeActivity.class));
-//                    mPermissionService.getDeviceBlessing().setPermissions("documents/" + mDeviceId +"/snake", new Random().nextInt());
-
+                    Intent intent = new Intent(EmailActivity.this, ComposeActivity.class);
+                    String msgId = addNewMessage("Drafts").getId();
+                    intent.putExtra(ComposeActivity.EXTRA_MESSAGE_ID, msgId);
+                    startActivity(intent);
                 }
             });
         }
@@ -99,17 +126,42 @@ public class EmailActivity extends AppCompatActivity implements ServiceConnectio
         PermissionService.start(this);
         PermissionService.bind(this);
 
+        mDrawerLayout = (DrawerLayout) findViewById(R.id.drawer_layout);
+        mDrawerList = (ListView) findViewById(R.id.left_drawer);
+        mDrawerList.setAdapter(new ArrayAdapter<String>(this,
+                R.layout.navigation_menu_item, R.id.navigationItemText, mGroupList));
+        // Set the list's click listener
+        mDrawerList.setOnItemClickListener(new AdapterView.OnItemClickListener() {
+            @Override
+            public void onItemClick(AdapterView<?> parent, View view, int position, long id) {
+                mDrawerList.setSelection(position);
+                mDrawerLayout.closeDrawers();
+                setGroup(mGroupList[position]);
+            }
+        });
+        mDrawerList.setSelection(0);
+
+
         mInboxAdapter = new MessagesAdapter(mMessages);
         mLayoutManager = new LinearLayoutManager(this);
         mInboxRecyclerView = (RecyclerView) findViewById(R.id.inboxRecyclerView);
         mInboxRecyclerView.setLayoutManager(mLayoutManager);
         mInboxRecyclerView.setAdapter(mInboxAdapter);
 
+        setGroup(mGroup);
+
         //add swipe behavior
 //        ItemTouchHelper itemTouchHelper = new ItemTouchHelper(simpleItemTouchCallback);
 //        itemTouchHelper.attachToRecyclerView(mInboxRecyclerView);
 
     }
+
+    public void setGroup(String group) {
+        mGroup = group;
+        mToolbar.setTitle(group);
+        mInboxAdapter.setGroup(group);
+    }
+
 
     @Override
     public boolean onCreateOptionsMenu(Menu menu) {
@@ -130,8 +182,13 @@ public class EmailActivity extends AppCompatActivity implements ServiceConnectio
 
             return true;
         }
-
         return super.onOptionsItemSelected(item);
+    }
+
+    MessageData addNewMessage(String group) {
+        MessageData msg = new MessageData(UUID.randomUUID().toString(), "", "", "", "",null, group);
+        mMessagesRef.child(msg.getId()).setValue(msg);
+        return msg;
     }
 
     ItemTouchHelper.SimpleCallback simpleItemTouchCallback = new ItemTouchHelper.SimpleCallback(0, ItemTouchHelper.RIGHT | ItemTouchHelper.LEFT) {
@@ -167,7 +224,7 @@ public class EmailActivity extends AppCompatActivity implements ServiceConnectio
             mPermissionManager.addOnRequestListener("documents/" + mDeviceId + "/emails/messages/*", new PermissionManager.OnRequestListener() {
                 @Override
                 public boolean onRequest(PermissionRequest request, Blessing blessing) {
-                    mInboxAdapter.notifyDataSetChanged();
+                    mInboxAdapter.refreshDataSet();
                     return true;
                 }
 
@@ -192,19 +249,19 @@ public class EmailActivity extends AppCompatActivity implements ServiceConnectio
         @Override
         public void onChildAdded(DataSnapshot dataSnapshot, String s) {
             onMessageUpdated(dataSnapshot);
-            mInboxAdapter.notifyDataSetChanged();
+            mInboxAdapter.refreshDataSet();
         }
 
         @Override
         public void onChildChanged(DataSnapshot dataSnapshot, String s) {
             onMessageUpdated(dataSnapshot);
-            mInboxAdapter.notifyDataSetChanged();
+            mInboxAdapter.refreshDataSet();
         }
 
         @Override
         public void onChildRemoved(DataSnapshot dataSnapshot) {
             onMessageRemoved(dataSnapshot.getKey());
-            mInboxAdapter.notifyDataSetChanged();
+            mInboxAdapter.refreshDataSet();
         }
 
         @Override
@@ -222,7 +279,7 @@ public class EmailActivity extends AppCompatActivity implements ServiceConnectio
         @Override
         public void onDataChange(DataSnapshot dataSnapshot) {
             onMessagesUpdated(dataSnapshot);
-            mInboxAdapter.notifyDataSetChanged();
+            mInboxAdapter.refreshDataSet();
         }
 
         @Override
@@ -298,18 +355,38 @@ public class EmailActivity extends AppCompatActivity implements ServiceConnectio
     }
 
     public class MessagesAdapter extends RecyclerView.Adapter<ViewHolder> {
-        private LinkedHashMap<String, MessageData> mDataset;
+
+        private LinkedHashMap<String, MessageData> mRawDataSet;
+        private LinkedHashMap<String, MessageData> mDataSet = new LinkedHashMap<>();
+
+        private String mGroup;
 
         public MessagesAdapter(LinkedHashMap<String, MessageData> dataset) {
             setDataset(dataset);
         }
 
         public void setDataset(LinkedHashMap<String, MessageData> mDataset) {
-            this.mDataset = mDataset;
+            this.mRawDataSet = mDataset;
+            refreshDataSet();
+        }
+
+        public void refreshDataSet() {
+            mDataSet.clear();
+            for (Map.Entry<String, MessageData> entry : mRawDataSet.entrySet()) {
+                if (mGroup == null || entry.getValue().getGroup().equals(mGroup)) {
+                    mDataSet.put(entry.getKey(), entry.getValue());
+                }
+            }
+            notifyDataSetChanged();
         }
 
         public MessageData getItem(int position) {
-            return Iterables.get(mDataset.values(), position);
+            return Iterables.get(mDataSet.values(), position);
+        }
+
+        public void setGroup(String group) {
+            this.mGroup = group;
+            refreshDataSet();
         }
 
         @Override
@@ -377,7 +454,7 @@ public class EmailActivity extends AppCompatActivity implements ServiceConnectio
 
         @Override
         public int getItemCount() {
-            return mDataset.size();
+            return mDataSet.size();
         }
     }
 
@@ -396,4 +473,6 @@ public class EmailActivity extends AppCompatActivity implements ServiceConnectio
         super.onDestroy();
         unbindService(this);
     }
+
+
 }
