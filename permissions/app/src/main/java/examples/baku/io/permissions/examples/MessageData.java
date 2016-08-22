@@ -18,18 +18,20 @@ public class MessageData {
     String from = "";
     String subject = "";
     String message = "";
+    String group = "drafts";
     long timeStamp;
 
 //    Map<String, Map<String, Integer>> shared = new HashMap<>();
 
     public MessageData(){}
 
-    public MessageData(String id, String to, String from, String subject, String message) {
+    public MessageData(String id, String to, String from, String subject, String message, String group) {
         this.id = id;
         this.to = to;
         this.from = from;
         this.subject = subject;
         this.message = message;
+        this.group = group;
     }
 
     public String getId() {

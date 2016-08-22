@@ -22,6 +22,7 @@ import android.text.style.BackgroundColorSpan;
 import android.text.style.StrikethroughSpan;
 import android.util.AttributeSet;
 import android.view.Gravity;
+import android.view.KeyEvent;
 import android.view.MotionEvent;
 import android.view.View;
 import android.view.inputmethod.EditorInfo;
@@ -96,7 +97,7 @@ public class PermissionedTextLayout extends FrameLayout implements PermissionMan
         init(context, attrs, defStyleAttr);
     }
 
-    public void setAutoCompleteAdapter(ArrayAdapter<String> adapter){
+    public void setAutoCompleteAdapter(ArrayAdapter<String> adapter) {
         editText.setAdapter(adapter);
     }
 
@@ -150,7 +151,7 @@ public class PermissionedTextLayout extends FrameLayout implements PermissionMan
                     case MotionEvent.ACTION_UP:
                         if (permissionedTextListener != null) {
                             int aId = 0;
-                            if(mPrimaryAction != null){
+                            if (mPrimaryAction != null) {
                                 aId = mPrimaryAction.id;
                             }
                             permissionedTextListener.onAction(aId, PermissionedTextLayout.this);
@@ -293,29 +294,29 @@ public class PermissionedTextLayout extends FrameLayout implements PermissionMan
         }
     };
 
-    public void clearActions(){
+    public void clearActions() {
         mActions.clear();
         mPrimaryAction = null;
         updateActions();
     }
 
-    public void removeAction(int id){
+    public void removeAction(int id) {
         mActions.remove(id);
         updateActions();
     }
 
-    public void setAction(int id, Drawable icon, String label){
-        mActions.put(id, new ActionItem(id,icon,label));
+    public void setAction(int id, Drawable icon, String label) {
+        mActions.put(id, new ActionItem(id, icon, label));
         mPrimaryAction = mActions.values().iterator().next();
         updateActions();
     }
 
-    public void updateActions(){
-        if(mActions.size() == 1){
+    public void updateActions() {
+        if (mActions.size() == 1) {
             ActionItem action = mPrimaryAction;
             actionButton.setVisibility(VISIBLE);
             actionButton.setImageDrawable(action.icon);
-        }else{
+        } else {
             actionButton.setVisibility(GONE);
         }
     }
@@ -369,10 +370,10 @@ public class PermissionedTextLayout extends FrameLayout implements PermissionMan
         }
     };
 
-    public List<SyncTextDiff> getSuggestions(){
+    public List<SyncTextDiff> getSuggestions() {
         List<SyncTextDiff> result = new LinkedList<>();
-        for(SyncTextDiff diff : syncText.getDiffs()){
-            if(diff.permission == PermissionManager.FLAG_SUGGEST){
+        for (SyncTextDiff diff : syncText.getDiffs()) {
+            if (diff.permission == PermissionManager.FLAG_SUGGEST) {
                 result.add(diff);
             }
         }
@@ -392,7 +393,7 @@ public class PermissionedTextLayout extends FrameLayout implements PermissionMan
         return null;
     }
 
-    class ActionItem{
+    class ActionItem {
         int id;
         Drawable icon;
         String label;

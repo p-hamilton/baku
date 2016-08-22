@@ -105,9 +105,9 @@ public class EmailActivity extends AppCompatActivity implements ServiceConnectio
         mInboxRecyclerView.setLayoutManager(mLayoutManager);
         mInboxRecyclerView.setAdapter(mInboxAdapter);
 
-        ItemTouchHelper itemTouchHelper = new ItemTouchHelper(simpleItemTouchCallback);
-
-        itemTouchHelper.attachToRecyclerView(mInboxRecyclerView);
+        //add swipe behavior
+//        ItemTouchHelper itemTouchHelper = new ItemTouchHelper(simpleItemTouchCallback);
+//        itemTouchHelper.attachToRecyclerView(mInboxRecyclerView);
 
     }
 

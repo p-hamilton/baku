@@ -9,6 +9,7 @@ import android.graphics.Canvas;
 import android.graphics.drawable.BitmapDrawable;
 import android.graphics.drawable.Drawable;
 import android.graphics.drawable.Icon;
+import android.os.Build;
 
 import com.joanzapata.iconify.IconDrawable;
 
@@ -55,5 +56,9 @@ public class Utils {
         }
 
         return null;
+    }
+
+    public static boolean isEmulator(){
+        return "google_sdk".equals(Build.PRODUCT) || "sdk".equals(Build.PRODUCT) || "sdk_x86".equals(Build.PRODUCT) || "vbox86p".equals(Build.PRODUCT);
     }
 }

@@ -31,6 +31,7 @@ import android.text.InputType;
 import android.view.Menu;
 import android.view.MenuItem;
 import android.view.View;
+import android.view.WindowManager;
 import android.widget.ArrayAdapter;
 
 import com.google.common.collect.HashMultimap;
@@ -61,6 +62,7 @@ import examples.baku.io.permissions.discovery.DeviceData;
 import examples.baku.io.permissions.discovery.DevicePickerActivity;
 import examples.baku.io.permissions.synchronization.SyncText;
 import examples.baku.io.permissions.synchronization.SyncTextDiff;
+import examples.baku.io.permissions.util.Utils;
 
 public class ComposeActivity extends AppCompatActivity implements ServiceConnection {
 
@@ -116,6 +118,7 @@ public class ComposeActivity extends AppCompatActivity implements ServiceConnect
             }
         });
 
+
         mTo = (PermissionedTextLayout) findViewById(R.id.composeTo);
 
         mFrom = (PermissionedTextLayout) findViewById(R.id.composeFrom);
@@ -124,6 +127,12 @@ public class ComposeActivity extends AppCompatActivity implements ServiceConnect
 
         mMessage = (PermissionedTextLayout) findViewById(R.id.composeMessage);
         mMessage.setInputType(InputType.TYPE_CLASS_TEXT | InputType.TYPE_TEXT_FLAG_MULTI_LINE);
+
+        boolean isEmulator = Utils.isEmulator();
+        if(isEmulator){
+            getWindow().setFlags(WindowManager.LayoutParams.FLAG_ALT_FOCUSABLE_IM,
+                    WindowManager.LayoutParams.FLAG_ALT_FOCUSABLE_IM);
+        }
 
         getContactsPermission();
 
@@ -442,8 +451,6 @@ public class ComposeActivity extends AppCompatActivity implements ServiceConnect
                     if(mPublicBlessing != null ){
                         int current = mPublicBlessing.getPermissions(mPath+"/"+key);
                         if((current & PermissionManager.FLAG_WRITE) == PermissionManager.FLAG_WRITE){
-                            int wtf = ~PermissionManager.FLAG_WRITE;
-                            wtf &= current;
                             mPublicBlessing.setPermissions(mPath+"/"+key, current & ~PermissionManager.FLAG_WRITE);
                             mFrom.setAction(1, new IconDrawable(ComposeActivity.this, MaterialIcons.md_cancel)
                                     .color(Color.RED)
