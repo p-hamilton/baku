@@ -439,12 +439,15 @@ public class PermissionService extends Service {
     }
 
     public void removeFromConstellation(String deviceId) {
+        Integer nId = mConstellationNotifications.remove(deviceId);
+        if(nId != null){
+            mNotificationManager.cancel(nId);
+        }
+
         if(!mConstellation.contains(deviceId)){
             return;
         }
-
         mConstellation.remove(deviceId);
-        mConstellationNotifications.remove(deviceId);
         //revoke all blessings
         for (Blessing blessing : mPermissionManager.getReceivedBlessings()) {
             Blessing granted = blessing.getBlessing(deviceId);

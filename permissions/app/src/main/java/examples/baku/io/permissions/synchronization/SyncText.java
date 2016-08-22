@@ -111,7 +111,7 @@ public class SyncText {
         this.mOnTextChangeListener = onTextChangeListener;
     }
 
-    public int update(String newText) {
+    public int update(String newText, int ver) {
         if (mPatchesRef == null) {
             throw new RuntimeException("database connection hasn't been initialized");
         }
@@ -121,7 +121,7 @@ public class SyncText {
         if (patches.size() > 0) {
             String patchString = diffMatchPatch.patchToText(patches);
             SyncTextPatch patch = new SyncTextPatch();
-            patch.setVer(ver + 1);
+            patch.setVer(ver);
             patch.setPatch(patchString);
             if (mLocalSource != null) {
                 patch.setSource(mLocalSource);
@@ -131,6 +131,10 @@ public class SyncText {
             return patch.getVer();
         }
         return -1;
+    }
+
+    public int update(String newText) {
+        return update(newText, ver + 1);
     }
 
     private LinkedList<SyncTextDiff> toDiffs(String text) {
@@ -377,7 +381,9 @@ public class SyncText {
                     while (previousDiff.length() < length) {
                         result.add(previousDiff);
                         length -= previousDiff.length();
-                        previousDiff = previousIterator.next();
+                        if(previousIterator.hasNext()){
+                            previousDiff = previousIterator.next();
+                        }
                     }
                     if (previousDiff.length() == length) {
                         result.add(previousDiff);

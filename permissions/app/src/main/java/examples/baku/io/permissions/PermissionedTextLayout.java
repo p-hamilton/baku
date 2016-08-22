@@ -72,7 +72,10 @@ public class PermissionedTextLayout extends FrameLayout implements PermissionMan
 
     private int inputType = InputType.TYPE_CLASS_TEXT;
 
-    private boolean editable = false;
+    private boolean editable = true;
+
+
+    private int version = -1;
 
     public void unlink() {
         if (syncText != null) {
@@ -267,7 +270,7 @@ public class PermissionedTextLayout extends FrameLayout implements PermissionMan
     }
 
     public void setEditable(boolean editable) {
-        this.editable = editable;
+//        this.editable = editable;
         update();
     }
 
@@ -293,8 +296,6 @@ public class PermissionedTextLayout extends FrameLayout implements PermissionMan
             });
         }
     }
-
-    private int version = -1;
 
     private TextWatcher watcher = new TextWatcher() {
         @Override
