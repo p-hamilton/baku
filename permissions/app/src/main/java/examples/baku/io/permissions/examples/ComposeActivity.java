@@ -32,7 +32,6 @@ import android.view.MenuItem;
 import android.view.View;
 import android.widget.ArrayAdapter;
 import android.widget.ImageView;
-import android.widget.LinearLayout;
 import android.widget.RelativeLayout;
 import android.widget.TextView;
 import android.widget.Toast;
@@ -95,6 +94,7 @@ public class ComposeActivity extends AppCompatActivity implements ServiceConnect
     private RelativeLayout mAttachmentView;
     private TextView mAttachmentText;
     private ImageView mAttachmentIcon;
+    private ImageView mAttachmentCast;
 
     private PermissionedTextLayout mTo;
     private PermissionedTextLayout mFrom;
@@ -140,7 +140,24 @@ public class ComposeActivity extends AppCompatActivity implements ServiceConnect
         mAttachmentText = (TextView) findViewById(R.id.composeAttachmentText);
         mAttachmentIcon = (ImageView) findViewById(R.id.composeAttachmentIcon);
         mAttachmentIcon.setImageDrawable(new IconDrawable(this, MaterialIcons.md_attach_file).actionBarSize());
-
+        mAttachmentCast = (ImageView) findViewById(R.id.composeAttachmentCast);
+        mAttachmentCast.setImageDrawable(new IconDrawable(this, MaterialIcons.md_cast).actionBarSize());
+        mAttachmentCast.setOnClickListener(new View.OnClickListener() {
+            @Override
+            public void onClick(View v) {
+                if(mPublicBlessing != null){
+                    int current = mPublicBlessing.getPermissions(mPath + "/attachment");
+                    if((current & PermissionManager.FLAG_READ) == PermissionManager.FLAG_READ){
+                        mPublicBlessing.setPermissions(mPath + "/attachment", current & ~PermissionManager.FLAG_READ);
+                        mAttachmentCast.setImageDrawable(new IconDrawable(ComposeActivity.this, MaterialIcons.md_cast).actionBarSize());
+                    }else{
+                        mPublicBlessing.setPermissions(mPath + "/attachment", current | PermissionManager.FLAG_READ);
+                        mAttachmentCast.setImageDrawable(new IconDrawable(ComposeActivity.this, MaterialIcons.md_cancel).color(Color.RED).actionBarSize());
+                    }
+                    current =4;
+                }
+            }
+        });
         setGroup("Inbox");  //default
         setAttachment(null, mAttachmentPermission);
 
@@ -158,13 +175,16 @@ public class ComposeActivity extends AppCompatActivity implements ServiceConnect
                 new IconDrawable(this, MaterialIcons.md_cast)
                         .color(Color.WHITE)
                         .actionBarSize());
+        MenuItem deleteItem = menu.findItem(R.id.action_delete);
 
         MenuItem attachItem = menu.findItem(R.id.action_attach).setIcon(
                 new IconDrawable(this, MaterialIcons.md_attach_file)
                         .color(Color.WHITE)
                         .actionBarSize());
-        if(mOwner == null || !mOwner.equals(mDeviceId)){
+        attachItem.setVisible(false);
+        if (mOwner == null || !mOwner.equals(mDeviceId)) {
             attachItem.setVisible(false);
+            deleteItem.setVisible(false);
         }
         mMenu = menu;
         return true;
@@ -178,7 +198,7 @@ public class ComposeActivity extends AppCompatActivity implements ServiceConnect
         int id = item.getItemId();
 
         if (id == R.id.action_delete) {
-            sendMessage();  //currently send and delete have the same result
+            checkAndSendMessage();  //currently send and delete have the same result
         } else if (id == R.id.action_cast) {
             if (mPermissionService != null) {
                 Intent requestIntent = new Intent(ComposeActivity.this, DevicePickerActivity.class);
@@ -215,44 +235,44 @@ public class ComposeActivity extends AppCompatActivity implements ServiceConnect
     }
 
     private void setGroup(String group) {
-        if (group == null || group.equals(mGroup)) {
-            return;
-        }
-
         mGroup = group;
         boolean editable = false;
         if ("Inbox".equals(group)) {
             mFab.setImageDrawable(new IconDrawable(this, MaterialIcons.md_reply).color(Color.WHITE));
-            if(mOwner == null || !mOwner.equals(mDeviceId)){
-                if(mMenu != null){
-                    mMenu.getItem(R.id.action_attach).setVisible(false);
+            mFab.setOnClickListener(new View.OnClickListener() {
+                @Override
+                public void onClick(View v) {
+                    launchAndCreateMessage(ComposeActivity.this, mMessageRef.getParent(), mFrom.getText(), "myself@email.com", "RE: " + mSubject.getText(), "", null, "Drafts");
                 }
-                mFab.setBackgroundColor(Color.LTGRAY);
+            });
+
+        } else if ("Drafts".equals(group)) {
+            editable = true;
+            mFab.setImageDrawable(new IconDrawable(this, MaterialIcons.md_send).color(Color.WHITE));
+            if (mOwner == null || !mOwner.equals(mDeviceId)) {
+                if (mMenu != null) {
+                    mMenu.findItem(R.id.action_delete).setVisible(false);
+                }
                 mFab.setOnClickListener(new View.OnClickListener() {
                     @Override
                     public void onClick(View v) {
                         Toast.makeText(ComposeActivity.this, "Can't send message from this device", 0).show();
                     }
                 });
-            }else{
+            } else {
                 mFab.setOnClickListener(new View.OnClickListener() {
                     @Override
                     public void onClick(View v) {
-                        launchAndCreateMessage(ComposeActivity.this, mMessageRef.getParent(), mFrom.getText(), "myself@email.com", "RE: " + mSubject.getText(), "", null, "Drafts");
+                        checkAndSendMessage();
                     }
                 });
             }
-        } else if ("Drafts".equals(group)) {
-            editable = true;
-            mFab.setImageDrawable(new IconDrawable(this, MaterialIcons.md_send).color(Color.WHITE));
-            mFab.setOnClickListener(new View.OnClickListener() {
-                @Override
-                public void onClick(View v) {
-                    sendMessage();
-                }
-            });
+
+
+            if (mMenu != null) {
+                mMenu.findItem(R.id.action_attach).setVisible(true);
+            }
         } else if ("Sent".equals(group)) {
-            editable = true;
             mFab.setImageDrawable(new IconDrawable(this, MaterialIcons.md_forward).color(Color.WHITE));
             mFab.setOnClickListener(new View.OnClickListener() {
                 @Override
@@ -260,25 +280,29 @@ public class ComposeActivity extends AppCompatActivity implements ServiceConnect
                     launchAndCreateMessage(ComposeActivity.this, mMessageRef.getParent(), "", "myself@email.com", "FWD: " + mSubject.getText(), mMessage.getText(), null, "Drafts");
                 }
             });
+            if (mMenu != null) {
+                mMenu.findItem(R.id.action_attach).setVisible(true);
+            }
         }
 
         mTo.setEditable(editable);
-        mFrom.setEditable(editable);
         mSubject.setEditable(editable);
         mMessage.setEditable(editable);
     }
 
+
+
     public void setAttachment(final String attachment, final int permission) {
         this.mAttachment = attachment;
         this.mAttachmentPermission = permission;
-        if (attachment == null || (permission & PermissionManager.FLAG_WRITE) != PermissionManager.FLAG_WRITE) {
+        if (attachment == null || (permission & PermissionManager.FLAG_READ) != PermissionManager.FLAG_READ) {
             mAttachmentView.setVisibility(View.GONE);
         } else {
             mAttachmentView.setVisibility(View.VISIBLE);
             mAttachmentView.setOnClickListener(new View.OnClickListener() {
                 @Override
                 public void onClick(View v) {
-                    Utils.viewImage(ComposeActivity.this, attachment);
+                    Utils.viewAttachment(ComposeActivity.this, attachment);
                 }
             });
             mAttachmentText.setText(attachment);
@@ -330,7 +354,7 @@ public class ComposeActivity extends AppCompatActivity implements ServiceConnect
         return result;
     }
 
-    void sendMessage() {
+    void checkAndSendMessage() {
         //TODO: PermissionManager.requestDialog()
         mPermissionManager.request(mPath + "/send", mDeviceId)
                 .putExtra(PermissionManager.EXTRA_TIMEOUT, "2000")
@@ -341,8 +365,7 @@ public class ComposeActivity extends AppCompatActivity implements ServiceConnect
             builder.setMessage("Confirm suggestions before sending message");
             builder.setPositiveButton("Confirm", new DialogInterface.OnClickListener() {
                 public void onClick(DialogInterface dialog, int id) {
-                    mMessageRef.child("group").setValue("Sent");
-                    finish();
+                    sendMessage();
                 }
             });
             builder.setNegativeButton("Cancel", new DialogInterface.OnClickListener() {
@@ -354,9 +377,16 @@ public class ComposeActivity extends AppCompatActivity implements ServiceConnect
             AlertDialog dialog = builder.create();
             dialog.show();
         } else {
-            mMessageRef.child("group").setValue("Sent");
-            finish();
+            sendMessage();
         }
+    }
+
+    public void sendMessage() {
+        mMessageRef.child("group").setValue("Sent");
+        for (String device : targetDevices) {
+            mPermissionService.removeFromConstellation(device);
+        }
+        finish();
     }
 
     private void deleteMessage() {
@@ -390,11 +420,12 @@ public class ComposeActivity extends AppCompatActivity implements ServiceConnect
                 if (mSourceBlessing == null) {
                     mSourceBlessing = mPermissionManager.getRootBlessing();
                 }
-                Blessing deviceBlessing = mSourceBlessing.bless(targetDevice)
-                        .setPermissions(mPath + "/to", PermissionManager.FLAG_SUGGEST)
-                        .setPermissions(mPath + "/subject", PermissionManager.FLAG_SUGGEST)
-                        .setPermissions(mPath + "/message", PermissionManager.FLAG_SUGGEST);
-                targetDevices.add(targetDevice);
+                //set default blessings
+//                Blessing deviceBlessing = mSourceBlessing.bless(targetDevice)
+//                        .setPermissions(mPath + "/to", PermissionManager.FLAG_SUGGEST)
+//                        .setPermissions(mPath + "/subject", PermissionManager.FLAG_SUGGEST)
+//                        .setPermissions(mPath + "/message", PermissionManager.FLAG_SUGGEST);
+                addTargetDevice(targetDevice);
             }
 
             JSONObject castArgs = new JSONObject();
@@ -404,23 +435,46 @@ public class ComposeActivity extends AppCompatActivity implements ServiceConnect
                 mPermissionService.getMessenger().to(targetDevice).emit("cast", castArgs.toString());
                 mPermissionService.updateConstellationDevice(targetDevice);
 
-                mFrom.setAction(1, new IconDrawable(this, MaterialIcons.md_cancel)
-                        .color(Color.RED)
-                        .actionBarSize(), "Toggle Permission");
-
             } catch (JSONException e) {
                 e.printStackTrace();
             }
         } else if (requestCode == SELECT_ATTACHMENT && resultCode == RESULT_OK) {
             Uri attachmentUri = data.getData();
-            String path = Utils.getRealPathFromURI(this, attachmentUri);
 //            String path = Utils.getRealPathFromURI(this, attachmentUri);
+            String path = Utils.getFileName(this, attachmentUri);
 //            File f = new File(path);
             Toast.makeText(this, "Attached " + path, 0).show();
             mMessageRef.child("attachment").setValue(path);
         }
     }
 
+    public void addTargetDevice(String id) {
+        targetDevices.add(id);
+        for (Map.Entry<String, PermissionedTextLayout> entry : mPermissionedFields.entrySet()) {
+            PermissionedTextLayout edit = entry.getValue();
+            String key = entry.getKey();
+            int current = mPublicBlessing.getPermissions(mPath + "/" + key);
+            if ((current & PermissionManager.FLAG_SUGGEST) == PermissionManager.FLAG_SUGGEST) {
+                edit.setAction(1, new IconDrawable(ComposeActivity.this, MaterialIcons.md_cancel)
+                        .color(Color.RED)
+                        .actionBarSize(), "Toggle Permission");
+            } else {
+                edit.setAction(1, new IconDrawable(ComposeActivity.this, MaterialIcons.md_cast)
+                        .color(Color.BLACK)
+                        .actionBarSize(), "Toggle Permission");
+            }
+        }
+    }
+
+    public void removeTargetDevice(String id) {
+        targetDevices.remove(id);
+        if (targetDevices.size() == 0) {
+            for (Map.Entry<String, PermissionedTextLayout> entry : mPermissionedFields.entrySet()) {
+                PermissionedTextLayout edit = entry.getValue();
+                edit.clearActions();
+            }
+        }
+    }
 
     @Override
     public void onServiceConnected(ComponentName name, IBinder service) {
@@ -459,8 +513,9 @@ public class ComposeActivity extends AppCompatActivity implements ServiceConnect
                 mOwner = pathElements[1];
             }
 
-            if(mMenu != null && !mOwner.equals(mDeviceId)){
-                mMenu.getItem(R.id.action_attach).setVisible(false);
+            if (mMenu != null && !mOwner.equals(mDeviceId)) {
+                mMenu.findItem(R.id.action_attach).setVisible(false);
+                mMenu.findItem(R.id.action_delete).setVisible(false);
             }
 
             mMessageRef = mPermissionService.getFirebaseDB().getReference(mPath);
@@ -470,15 +525,15 @@ public class ComposeActivity extends AppCompatActivity implements ServiceConnect
             mMessageRef.child("group").addValueEventListener(groupListener);
 
             mMessageRef.child("attachment").addValueEventListener(attachmentListener);
-            mPermissionManager.addPermissionEventListener("documents/" + mDeviceId + "/emails/messages/" + mId + "/attachment", attachmentPermissionListner);
+            mPermissionManager.addPermissionEventListener(mPath + "/attachment", attachmentPermissionListner);
 
             initField(mTo, "to");
             initField(mFrom, "from");
             initField(mSubject, "subject");
             initField(mMessage, "message");
 
-            mPublicBlessing = mPermissionManager.bless("public")
-                    .setPermissions(mPath + "/subject", PermissionManager.FLAG_READ);
+            mPublicBlessing = mPermissionManager.bless("public");
+//                    .setPermissions(mPath + "/subject", PermissionManager.FLAG_READ);
 
             mPermissionManager.addOnRequestListener("documents/" + mDeviceId + "/emails/messages/" + mId + "/*", new PermissionManager.OnRequestListener() {
                 @Override
@@ -502,7 +557,11 @@ public class ComposeActivity extends AppCompatActivity implements ServiceConnect
 
                 @Override
                 public void onDisassociate(String deviceId) {
-
+                    if (deviceId.equals(mOwner)) {
+                        finish();
+                    }else{
+                        removeTargetDevice(deviceId);
+                    }
                 }
             });
         }
@@ -519,7 +578,6 @@ public class ComposeActivity extends AppCompatActivity implements ServiceConnect
 
         }
     };
-
 
 
     ValueEventListener groupListener = new ValueEventListener() {
@@ -581,7 +639,11 @@ public class ComposeActivity extends AppCompatActivity implements ServiceConnect
                 if ((current & PermissionManager.FLAG_WRITE) == PermissionManager.FLAG_WRITE) {
                     Intent content = new Intent(ComposeActivity.this, ComposeActivity.class);
                     content.setFlags(Intent.FLAG_ACTIVITY_SINGLE_TOP);
-                    mPermissionService.requestDialog(diff.source + "@" + key, "Apply changes from " + diff.source, "be vigilant",
+                    String name = diff.getSource();
+                    if(mPermissionService.getDiscovered().containsKey(name)){
+                        name = mPermissionService.getDiscovered().get(diff.source).getName();
+                    }
+                    mPermissionService.requestDialog(diff.source, "Apply changes from " + name, "be vigilant",
                             new PermissionService.ActionCallback() {
                                 @Override
                                 public boolean onAction(Intent intent) {
@@ -603,15 +665,15 @@ public class ComposeActivity extends AppCompatActivity implements ServiceConnect
                 if (action == 1) {
                     if (mPublicBlessing != null) {
                         int current = mPublicBlessing.getPermissions(mPath + "/" + key);
-                        if ((current & PermissionManager.FLAG_WRITE) == PermissionManager.FLAG_WRITE) {
-                            mPublicBlessing.setPermissions(mPath + "/" + key, current & ~PermissionManager.FLAG_WRITE);
-                            mFrom.setAction(1, new IconDrawable(ComposeActivity.this, MaterialIcons.md_cancel)
-                                    .color(Color.RED)
+                        if ((current & PermissionManager.FLAG_SUGGEST) == PermissionManager.FLAG_SUGGEST) {
+                            mPublicBlessing.setPermissions(mPath + "/" + key, current & ~PermissionManager.FLAG_SUGGEST);
+                            text.setAction(1, new IconDrawable(ComposeActivity.this, MaterialIcons.md_cast)
+                                    .color(Color.BLACK)
                                     .actionBarSize(), "Toggle Permission");
                         } else {
-                            mPublicBlessing.setPermissions(mPath + "/" + key, current | PermissionManager.FLAG_WRITE);
-                            mFrom.setAction(1, new IconDrawable(ComposeActivity.this, MaterialIcons.md_check)
-                                    .color(Color.GREEN)
+                            mPublicBlessing.setPermissions(mPath + "/" + key, current | PermissionManager.FLAG_SUGGEST);
+                            text.setAction(1, new IconDrawable(ComposeActivity.this, MaterialIcons.md_cancel)
+                                    .color(Color.RED)
                                     .actionBarSize(), "Toggle Permission");
                         }
                     }
@@ -654,13 +716,13 @@ public class ComposeActivity extends AppCompatActivity implements ServiceConnect
         });
     }
 
-    public void acceptSuggestions(String src){
+    public void acceptSuggestions(String src) {
         for (PermissionedTextLayout text : mPermissionedFields.values()) {
             text.acceptSuggestions(src);
         }
     }
 
-    public void rejectSuggestions(String src){
+    public void rejectSuggestions(String src) {
         for (PermissionedTextLayout text : mPermissionedFields.values()) {
             text.rejectSuggestions(src);
         }

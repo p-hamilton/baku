@@ -312,7 +312,8 @@ public class PermissionService extends Service {
             Intent emailIntent = new Intent(PermissionService.this, ComposeActivity.class);
             emailIntent.putExtra(ComposeActivity.EXTRA_MESSAGE_PATH, focusPath);
             emailIntent.setFlags(Intent.FLAG_ACTIVITY_NEW_TASK);
-            notificationBuilder.addAction(new Notification.Action.Builder(castIcon, "Pull Message", PendingIntent.getActivity(this, 0, emailIntent, PendingIntent.FLAG_CANCEL_CURRENT)).build());
+//            notificationBuilder.addAction(new Notification.Action.Builder(castIcon, "Pull Message", PendingIntent.getActivity(this, 0, emailIntent, PendingIntent.FLAG_CANCEL_CURRENT)).build());
+            notificationBuilder.setContentIntent(PendingIntent.getActivity(this, 0, emailIntent, PendingIntent.FLAG_CANCEL_CURRENT));
         }
 
         mConstellation.add(dId);
@@ -406,7 +407,7 @@ public class PermissionService extends Service {
         mMessenger.on("disassociate", new Messenger.Listener() {
             @Override
             public void call(Message msg, Messenger.Ack callback) {
-
+                removeFromConstellation(msg.getMessage());
             }
         });
 
@@ -438,6 +439,10 @@ public class PermissionService extends Service {
     }
 
     public void removeFromConstellation(String deviceId) {
+        if(!mConstellation.contains(deviceId)){
+            return;
+        }
+
         mConstellation.remove(deviceId);
         mConstellationNotifications.remove(deviceId);
         //revoke all blessings
@@ -450,6 +455,7 @@ public class PermissionService extends Service {
         for (DiscoveryListener listener : mDiscoveryListener) {
             listener.onDisassociate(deviceId);
         }
+        mMessenger.to(deviceId).emit("disassociate", mDeviceId);
     }
 
     private final BroadcastReceiver eventReceiver = new BroadcastReceiver() {
