@@ -158,6 +158,8 @@ public class ComposeActivity extends AppCompatActivity implements ServiceConnect
                 }
             }
         });
+        mAttachmentCast.setVisibility(View.GONE);
+
         setGroup("Inbox");  //default
         setAttachment(null, mAttachmentPermission);
 
@@ -464,6 +466,7 @@ public class ComposeActivity extends AppCompatActivity implements ServiceConnect
                         .actionBarSize(), "Toggle Permission");
             }
         }
+        mAttachmentCast.setVisibility(View.VISIBLE);
     }
 
     public void removeTargetDevice(String id) {
@@ -473,6 +476,7 @@ public class ComposeActivity extends AppCompatActivity implements ServiceConnect
                 PermissionedTextLayout edit = entry.getValue();
                 edit.clearActions();
             }
+            mAttachmentCast.setVisibility(View.GONE);
         }
     }
 

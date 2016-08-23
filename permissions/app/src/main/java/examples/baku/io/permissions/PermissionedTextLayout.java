@@ -32,6 +32,8 @@ import android.widget.AutoCompleteTextView;
 import android.widget.EditText;
 import android.widget.FrameLayout;
 import android.widget.ImageView;
+import android.widget.TextView;
+import android.widget.Toast;
 
 import com.google.firebase.database.DatabaseError;
 import com.joanzapata.iconify.IconDrawable;
@@ -131,14 +133,24 @@ public class PermissionedTextLayout extends FrameLayout implements PermissionMan
 
         overlay = new FrameLayout(context);
         overlay.setLayoutParams(new FrameLayout.LayoutParams(LayoutParams.MATCH_PARENT, FrameLayout.LayoutParams.MATCH_PARENT));
-        overlay.setBackgroundColor(Color.BLACK);
+//        overlay.setBackgroundColor(Color.BLACK);
+        overlay.setBackgroundResource(R.drawable.permission_overlay_bg);
         overlay.setOnTouchListener(new OnTouchListener() {
             @Override
             public boolean onTouch(View v, MotionEvent event) {
+                if(event.getAction() == MotionEvent.ACTION_UP){
+                    Toast.makeText(getContext(), "This device does not have permission to vie this field", 0).show();
+                }
                 return true;
             }
         });
         overlay.setVisibility(GONE);
+        TextView overlayLabel = new TextView(context);
+        overlayLabel.setTextSize(24);
+        overlayLabel.setGravity(Gravity.CENTER_HORIZONTAL | Gravity.CENTER_VERTICAL);
+        overlayLabel.setText(hint + " Unavailable");
+
+        overlay.addView(overlayLabel);
         addView(overlay);
 
         actionButton = new ImageView(context);
@@ -238,24 +250,24 @@ public class PermissionedTextLayout extends FrameLayout implements PermissionMan
         if (syncText != null) {
             this.syncText.setPermissions(permissions);
             if ((permissions & PermissionManager.FLAG_WRITE) == PermissionManager.FLAG_WRITE) {
-                setVisibility(VISIBLE);
+                editText.setVisibility(VISIBLE);
                 overlay.setVisibility(GONE);
                 editText.setInputType(inputType);
                 editText.setEnabled(true);
                 syncText.acceptSuggestions();
             } else if ((permissions & PermissionManager.FLAG_SUGGEST) == PermissionManager.FLAG_SUGGEST) {
-                setVisibility(VISIBLE);
+                editText.setVisibility(VISIBLE);
                 overlay.setVisibility(GONE);
                 editText.setInputType(inputType);
                 editText.setEnabled(true);
             } else if ((permissions & PermissionManager.FLAG_READ) == PermissionManager.FLAG_READ) {
-                setVisibility(VISIBLE);
+                editText.setVisibility(VISIBLE);
                 overlay.setVisibility(GONE);
                 syncText.rejectSuggestions();
                 editText.setInputType(EditorInfo.TYPE_NULL);
                 editText.setEnabled(false);
             } else {
-                setVisibility(GONE);
+                editText.setVisibility(GONE);
                 overlay.setVisibility(VISIBLE);
                 syncText.rejectSuggestions();
                 editText.setInputType(EditorInfo.TYPE_NULL);
